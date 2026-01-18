@@ -308,30 +308,180 @@ export default function ChurchScheduleApp() {
     return shuffled;
   };
 
+  // Generate schedule for the month
   const generateSchedule = () => {
     const days = getMonthDays(selectedMonth);
-    const newSchedule = {};
+    
+    // FIX: Changed from {} to { ...schedule } to preserve existing months
+    const newSchedule = { ...schedule };
+    
+    // Create a unique seed based on month and year for consistent but unique shuffling
     const seed = selectedMonth.getFullYear() * 12 + selectedMonth.getMonth();
+    
+    // Track how many times each speaker has been assigned per service type
     const speakerCounts = {};
     speakers.forEach(s => {
-      speakerCounts[s.id] = { sundayMorning: 0, sundayEvening: 0, wednesdayEvening: 0, communion: 0, total: 0 };
+      speakerCounts[s.id] = { 
+        sundayMorning: 0, 
+        sundayEvening: 0, 
+        wednesdayEvening: 0,
+        communion: 0,
+        total: 0 
+      };
     });
-    const slots = { sundayMorning: [], sundayEvening: [], wednesdayEvening: [], communion: [] };
+    
+    // Get all service slots for the month organized by service type
+    const slots = {
+      sundayMorning: [],
+      sundayEvening: [],
+      wednesdayEvening: [],
+      communion: []
+    };
+    
+    // Track which week of the month each Sunday falls on (1-5)
     let sundayCount = 0;
+    
     days.forEach(({ date, isCurrentMonth }) => {
       if (!isCurrentMonth) return;
+      
       const dayOfWeek = date.getDay();
       const dateKey = date.toISOString().split('T')[0];
-      if (dayOfWeek === 0) {
+      
+      if (dayOfWeek === 0) { // Sunday
         sundayCount++;
-        if (serviceSettings.sundayMorning.enabled) slots.sundayMorning.push({ dateKey, date, weekOfMonth: sundayCount });
-        if (serviceSettings.sundayEvening.enabled) slots.sundayEvening.push({ dateKey, date, weekOfMonth: sundayCount });
-        if (serviceSettings.communion.enabled && serviceSettings.sundayMorning.enabled) slots.communion.push({ dateKey, date, weekOfMonth: sundayCount });
+        if (serviceSettings.sundayMorning.enabled) {
+          slots.sundayMorning.push({ dateKey, date, weekOfMonth: sundayCount });
+        }
+        if (serviceSettings.sundayEvening.enabled) {
+          slots.sundayEvening.push({ dateKey, date, weekOfMonth: sundayCount });
+        }
+        if (serviceSettings.communion.enabled && serviceSettings.sundayMorning.enabled) {
+          slots.communion.push({ dateKey, date, weekOfMonth: sundayCount });
+        }
       }
-      if (dayOfWeek === 3 && serviceSettings.wednesdayEvening.enabled) {
-        slots.wednesdayEvening.push({ dateKey, date, weekOfMonth: Math.ceil(date.getDate() / 7) });
+      
+      if (dayOfWeek === 3) { // Wednesday
+        if (serviceSettings.wednesdayEvening.enabled) {
+          slots.wednesdayEvening.push({ dateKey, date, weekOfMonth: Math.ceil(date.getDate() / 7) });
+        }
       }
     });
+    
+    // Sort speakers by priority for selection
+    const getSortedAvailableSpeakers = (date, serviceType, excludeSpeakerId = null) => {
+      let available = speakers
+        .filter(s => isSpeakerAvailable(s, date, serviceType))
+        .filter(s => excludeSpeakerId ? s.id !== excludeSpeakerId : true);
+      
+      // Separate by priority
+      const priority1 = available.filter(s => s.priority === 1);
+      const priority2 = available.filter(s => s.priority === 2);
+      const defaultPriority = available.filter(s => !s.priority || s.priority === 0);
+      
+      // Shuffle default priority speakers for rotation
+      const serviceOffset = serviceType === 'sundayMorning' ? 0 : serviceType === 'sundayEvening' ? 1000 : serviceType === 'wednesdayEvening' ? 2000 : 3000;
+      const shuffledDefault = shuffleArray(defaultPriority, seed + serviceOffset);
+      
+      // Sort each group by count (fewest assignments first)
+      const sortByCount = (a, b) => speakerCounts[a.id][serviceType] - speakerCounts[b.id][serviceType];
+      priority1.sort(sortByCount);
+      priority2.sort(sortByCount);
+      shuffledDefault.sort(sortByCount);
+      
+      // Combine: priority 1 first, then priority 2, then shuffled default
+      return [...priority1, ...priority2, ...shuffledDefault];
+    };
+    
+    // First pass: Assign speakers with repeat rules
+    const assignRepeatRuleSpeakers = (serviceType, slotList) => {
+      speakers.forEach(speaker => {
+        if (!speaker.repeatRules) return;
+        
+        const rules = speaker.repeatRules.filter(r => r.serviceType === serviceType);
+        
+        rules.forEach(rule => {
+          slotList.forEach((slot, index) => {
+            // Check if speaker is available for this slot
+            if (!isSpeakerAvailable(speaker, slot.date, serviceType)) return;
+            
+            // Check if slot is already assigned
+            const slotKey = `${slot.dateKey}-${serviceType}`;
+            if (newSchedule[slotKey]) return;
+            
+            let shouldAssign = false;
+            
+            if (rule.pattern === 'everyOther') {
+              const startOnOdd = rule.startWeek === 'odd';
+              const isOddWeek = slot.weekOfMonth % 2 === 1;
+              shouldAssign = startOnOdd ? isOddWeek : !isOddWeek;
+            } else if (rule.pattern === 'nthWeek') {
+              shouldAssign = slot.weekOfMonth === rule.nthWeek;
+            }
+            
+            if (shouldAssign) {
+              newSchedule[slotKey] = {
+                speakerId: speaker.id,
+                date: slot.dateKey,
+                serviceType
+              };
+              speakerCounts[speaker.id][serviceType]++;
+              speakerCounts[speaker.id].total++;
+            }
+          });
+        });
+      });
+    };
+    
+    // Apply repeat rules first
+    assignRepeatRuleSpeakers('sundayMorning', slots.sundayMorning);
+    assignRepeatRuleSpeakers('sundayEvening', slots.sundayEvening);
+    assignRepeatRuleSpeakers('wednesdayEvening', slots.wednesdayEvening);
+    
+    // Second pass: Fill remaining slots with priority and rotation
+    const fillRemainingSlots = (serviceType, slotList, excludeFromSlotKey = null) => {
+      slotList.forEach(slot => {
+        const slotKey = `${slot.dateKey}-${serviceType}`;
+        
+        // Skip if already assigned by repeat rules
+        if (newSchedule[slotKey]) return;
+        
+        // Get excluded speaker ID (for communion, exclude Sunday morning speaker)
+        let excludeSpeakerId = null;
+        if (excludeFromSlotKey) {
+          const excludeKey = `${slot.dateKey}-${excludeFromSlotKey}`;
+          excludeSpeakerId = newSchedule[excludeKey]?.speakerId;
+        }
+        
+        // Get available speakers sorted by priority and count
+        const availableSpeakers = getSortedAvailableSpeakers(slot.date, serviceType, excludeSpeakerId);
+        
+        if (availableSpeakers.length === 0) return;
+        
+        // Select the best speaker (first in the sorted list)
+        const selectedSpeaker = availableSpeakers[0];
+        newSchedule[slotKey] = {
+          speakerId: selectedSpeaker.id,
+          date: slot.dateKey,
+          serviceType
+        };
+        speakerCounts[selectedSpeaker.id][serviceType]++;
+        speakerCounts[selectedSpeaker.id].total++;
+      });
+    };
+    
+    // Fill Sunday morning first
+    fillRemainingSlots('sundayMorning', slots.sundayMorning);
+    
+    // Fill communion (excluding Sunday morning speaker)
+    fillRemainingSlots('communion', slots.communion, 'sundayMorning');
+    
+    // Fill other services
+    fillRemainingSlots('sundayEvening', slots.sundayEvening);
+    fillRemainingSlots('wednesdayEvening', slots.wednesdayEvening);
+    
+    setSchedule(newSchedule);
+    setView('calendar');
+  };
 
     const getSortedAvailableSpeakers = (date, serviceType, excludeSpeakerId = null) => {
       let available = speakers.filter(s => isSpeakerAvailable(s, date, serviceType)).filter(s => excludeSpeakerId ? s.id !== excludeSpeakerId : true);
