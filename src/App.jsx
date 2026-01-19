@@ -272,7 +272,7 @@ export default function ChurchScheduleApp() {
   const isSpeakerAvailable = (speaker, date, serviceType) => {
     if (!speaker.availability[serviceType]) return false;
     const dateStr = date.toISOString().split('T')[0];
-    for (const block of speaker.blockOffDates || []) {
+    for (const block of (speaker.blockOffDates || [])) {
       if (dateStr >= block.start && dateStr <= block.end) return false;
     }
     return true;
@@ -364,6 +364,39 @@ export default function ChurchScheduleApp() {
     setAssigningSlot(null);
   };
 
+  // Drag and Drop Logic
+  const handleDragStart = (slotKey) => {
+    setDraggedSlot(slotKey);
+  };
+
+  const handleDrop = (targetSlotKey) => {
+    if (!draggedSlot || draggedSlot === targetSlotKey) {
+      setDraggedSlot(null);
+      return;
+    }
+    const newSchedule = { ...schedule };
+    const draggedData = newSchedule[draggedSlot];
+    const targetData = newSchedule[targetSlotKey];
+    if (draggedData) {
+      newSchedule[targetSlotKey] = { 
+        ...draggedData, 
+        date: targetSlotKey.split('-')[0], 
+        serviceType: targetSlotKey.split('-').slice(1).join('-') 
+      };
+    }
+    if (targetData) {
+      newSchedule[draggedSlot] = { 
+        ...targetData, 
+        date: draggedSlot.split('-')[0], 
+        serviceType: draggedSlot.split('-').slice(1).join('-') 
+      };
+    } else {
+      delete newSchedule[draggedSlot];
+    }
+    setSchedule(newSchedule);
+    setDraggedSlot(null);
+  };
+
   if (authLoading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>;
 
   if (!user) return (
@@ -406,9 +439,9 @@ export default function ChurchScheduleApp() {
         .badge-communion { background: #fce7f3; color: #be185d; }
         
         /* CALENDAR BARS */
-        .calendar-bar { padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: pointer; display: block; width: 100%; text-align: left; border: none; transition: transform 0.1s ease; }
-        .calendar-bar:active { transform: scale(0.98); }
-        .bar-empty { background: #e5e7eb; color: #666; }
+        .calendar-bar { padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: grab; display: block; width: 100%; text-align: left; border: none; transition: transform 0.1s ease; }
+        .calendar-bar:active { cursor: grabbing; }
+        .bar-empty { background: #e5e7eb; color: #666; cursor: pointer; }
         
         .input-field { width: 100%; padding: 12px 16px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; transition: border-color 0.2s; }
         .input-field:focus { outline: none; border-color: #1e3a5f; }
@@ -486,18 +519,39 @@ export default function ChurchScheduleApp() {
                     <div key={dateKey} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                       <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e3a5f' }}>{d.date.getDate()}</div>
                       {serviceSettings.sundayMorning.enabled && (
-                        <button className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayMorning`, date: dateKey, serviceType: 'sundayMorning', label: 'Sunday Morning' })}>
-                          Sunday Morning: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}
+                        <button 
+                          className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} 
+                          draggable={!!sm}
+                          onDragStart={() => sm && handleDragStart(`${dateKey}-sundayMorning`)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDrop(`${dateKey}-sundayMorning`)}
+                          onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayMorning`, date: dateKey, serviceType: 'sundayMorning', label: serviceSettings.sundayMorning.label })}
+                        >
+                          {serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}
                         </button>
                       )}
                       {serviceSettings.communion.enabled && (
-                        <button className={`calendar-bar ${com ? 'badge-communion' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-communion`, date: dateKey, serviceType: 'communion', label: 'Communion' })}>
+                        <button 
+                          className={`calendar-bar ${com ? 'badge-communion' : 'bar-empty'}`} 
+                          draggable={!!com}
+                          onDragStart={() => com && handleDragStart(`${dateKey}-communion`)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDrop(`${dateKey}-communion`)}
+                          onClick={() => setAssigningSlot({ slotKey: `${dateKey}-communion`, date: dateKey, serviceType: 'communion', label: 'Communion' })}
+                        >
                           Communion: {com ? getSpeakerName(com.speakerId) : '+ Assign'}
                         </button>
                       )}
                       {serviceSettings.sundayEvening.enabled && (
-                        <button className={`calendar-bar ${se ? 'badge-evening' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayEvening`, date: dateKey, serviceType: 'sundayEvening', label: 'Sunday Evening' })}>
-                          Sunday Evening: {se ? getSpeakerName(se.speakerId) : '+ Assign'}
+                        <button 
+                          className={`calendar-bar ${se ? 'badge-evening' : 'bar-empty'}`} 
+                          draggable={!!se}
+                          onDragStart={() => se && handleDragStart(`${dateKey}-sundayEvening`)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDrop(`${dateKey}-sundayEvening`)}
+                          onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayEvening`, date: dateKey, serviceType: 'sundayEvening', label: serviceSettings.sundayEvening.label })}
+                        >
+                          {serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}
                         </button>
                       )}
                     </div>
@@ -512,8 +566,15 @@ export default function ChurchScheduleApp() {
                   return (
                     <div key={dateKey} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                       <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e3a5f' }}>{d.date.getDate()}</div>
-                      <button className={`calendar-bar ${we ? 'badge-wednesday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-wednesdayEvening`, date: dateKey, serviceType: 'wednesdayEvening', label: 'Wednesday' })}>
-                        Wednesday: {we ? getSpeakerName(we.speakerId) : '+ Assign'}
+                      <button 
+                        className={`calendar-bar ${we ? 'badge-wednesday' : 'bar-empty'}`} 
+                        draggable={!!we}
+                        onDragStart={() => we && handleDragStart(`${dateKey}-wednesdayEvening`)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => handleDrop(`${dateKey}-wednesdayEvening`)}
+                        onClick={() => setAssigningSlot({ slotKey: `${dateKey}-wednesdayEvening`, date: dateKey, serviceType: 'wednesdayEvening', label: serviceSettings.wednesdayEvening.label })}
+                      >
+                        {serviceSettings.wednesdayEvening.label}: {we ? getSpeakerName(we.speakerId) : '+ Assign'}
                       </button>
                     </div>
                   );
@@ -524,7 +585,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* Profile Modal */}
+      {/* MODAL: PROFILE */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
           <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
@@ -555,7 +616,56 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* Speaker Modal */}
+      {/* MODAL: SETTINGS */}
+      {showSettings && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
+          <div className="card" style={{ maxWidth: '550px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 8px 0', color: '#1e3a5f', fontSize: '24px' }}>⚙️ Service Settings</h3>
+            <p style={{ color: '#666', marginBottom: '24px' }}>Configure church services and times</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {Object.keys(serviceSettings).map(serviceKey => (
+                <div key={serviceKey} style={{ padding: '16px', background: '#f9fafb', borderRadius: '12px', border: '1px solid #e5e0d8' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={serviceSettings[serviceKey].enabled} 
+                      onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], enabled: e.target.checked}})} 
+                    />
+                    <strong style={{ color: '#1e3a5f' }}>{serviceSettings[serviceKey].label}</strong>
+                  </div>
+                  {serviceSettings[serviceKey].enabled && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', color: '#666' }}>Label</label>
+                        <input 
+                          className="input-field" 
+                          value={serviceSettings[serviceKey].label} 
+                          onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], label: e.target.value}})} 
+                        />
+                      </div>
+                      {serviceKey !== 'communion' && (
+                        <div>
+                          <label style={{ fontSize: '12px', color: '#666' }}>Time</label>
+                          <input 
+                            className="input-field" 
+                            value={serviceSettings[serviceKey].time} 
+                            onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], time: e.target.value}})} 
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button className="btn-primary" onClick={() => setShowSettings(false)}>Save Settings</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SPEAKER */}
       {showAddSpeaker && editingSpeaker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
           <div className="card" style={{ maxWidth: '450px', width: '100%' }}>
@@ -583,7 +693,7 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* Assign Modal */}
+      {/* MODAL: ASSIGN */}
       {assigningSlot && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
           <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
