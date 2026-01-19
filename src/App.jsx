@@ -292,7 +292,7 @@ export default function ChurchScheduleApp() {
 
   const generateSchedule = () => {
     const days = getMonthDays(selectedMonth);
-    const newSchedule = { ...schedule }; // Persistence Month Fix
+    const newSchedule = { ...schedule }; // Persistent logic
     const seed = selectedMonth.getFullYear() * 12 + selectedMonth.getMonth();
     const speakerCounts = {};
     speakers.forEach(s => { speakerCounts[s.id] = { sundayMorning: 0, sundayEvening: 0, wednesdayEvening: 0, communion: 0, total: 0 }; });
@@ -351,6 +351,11 @@ export default function ChurchScheduleApp() {
     return speaker ? `${speaker.firstName} ${speaker.lastName}` : '';
   };
 
+  const getAvailableSpeakersForSlot = (date, serviceType) => {
+    const dateObj = new Date(date + 'T12:00:00');
+    return speakers.filter(s => isSpeakerAvailable(s, dateObj, serviceType));
+  };
+
   const assignSpeakerToSlot = (speakerId) => {
     if (!assigningSlot) return;
     const newSchedule = { ...schedule };
@@ -392,7 +397,7 @@ export default function ChurchScheduleApp() {
         .nav-tab { padding: 12px 24px; border: none; background: transparent; font-weight: 600; font-size: 15px; color: #666; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
         
-        /* RESTORED COLOR LABELS */
+        /* COLOR LABEL PALETTE */
         .service-badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-right: 8px; margin-bottom: 4px; display: inline-block; }
         .badge-priority { background: #fee2e2; color: #dc2626; }
         .badge-morning { background: #dbeafe; color: #1e40af; }
@@ -401,9 +406,8 @@ export default function ChurchScheduleApp() {
         .badge-communion { background: #fce7f3; color: #be185d; }
         
         /* CALENDAR BARS */
-        .calendar-bar { padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; color: white; margin: 4px 0; cursor: pointer; display: block; width: 100%; text-align: left; border: none; }
-        .bar-sunday { background: #1e3a5f; }
-        .bar-wednesday { background: #10b981; }
+        .calendar-bar { padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: pointer; display: block; width: 100%; text-align: left; border: none; transition: transform 0.1s ease; }
+        .calendar-bar:active { transform: scale(0.98); }
         .bar-empty { background: #e5e7eb; color: #666; }
         
         .input-field { width: 100%; padding: 12px 16px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; transition: border-color 0.2s; }
@@ -444,20 +448,12 @@ export default function ChurchScheduleApp() {
                 <div>
                   <h3 style={{ margin: '0 0 12px 0', color: '#1e3a5f', fontSize: '20px' }}>{s.firstName} {s.lastName}</h3>
                   <div style={{ marginBottom: '8px' }}>
-                    {s.priority === 1 && <span className="service-badge badge-priority">★ Priority 1</span>}
-                    {s.priority === 2 && <span className="service-badge badge-priority">★ Priority 2</span>}
+                    {s.priority > 0 && <span className="service-badge badge-priority">★ Priority {s.priority}</span>}
                     {s.availability.sundayMorning && <span className="service-badge badge-morning">Sunday Morning</span>}
                     {s.availability.sundayEvening && <span className="service-badge badge-evening">Sunday Evening</span>}
                     {s.availability.wednesdayEvening && <span className="service-badge badge-wednesday">Wednesday Evening</span>}
                     {s.availability.communion && <span className="service-badge badge-communion">Communion</span>}
                   </div>
-                  {s.repeatRules?.length > 0 && (
-                    <div style={{ fontSize: '13px', color: '#666' }}>
-                      <span style={{ background: '#d1fae5', color: '#065f46', padding: '2px 8px', borderRadius: '4px' }}>
-                        <strong>Repeat Rules:</strong> {s.repeatRules.map(r => r.serviceType).join(', ')}
-                      </span>
-                    </div>
-                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className="btn-secondary" style={{ padding: '8px 16px' }} onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
@@ -490,17 +486,17 @@ export default function ChurchScheduleApp() {
                     <div key={dateKey} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                       <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e3a5f' }}>{d.date.getDate()}</div>
                       {serviceSettings.sundayMorning.enabled && (
-                        <button className={`calendar-bar ${sm ? 'bar-sunday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayMorning`, date: dateKey, serviceType: 'sundayMorning', label: 'Sunday Morning' })}>
+                        <button className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayMorning`, date: dateKey, serviceType: 'sundayMorning', label: 'Sunday Morning' })}>
                           Sunday Morning: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}
                         </button>
                       )}
                       {serviceSettings.communion.enabled && (
-                        <button className={`calendar-bar ${com ? 'bar-sunday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-communion`, date: dateKey, serviceType: 'communion', label: 'Communion' })}>
+                        <button className={`calendar-bar ${com ? 'badge-communion' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-communion`, date: dateKey, serviceType: 'communion', label: 'Communion' })}>
                           Communion: {com ? getSpeakerName(com.speakerId) : '+ Assign'}
                         </button>
                       )}
                       {serviceSettings.sundayEvening.enabled && (
-                        <button className={`calendar-bar ${se ? 'bar-sunday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayEvening`, date: dateKey, serviceType: 'sundayEvening', label: 'Sunday Evening' })}>
+                        <button className={`calendar-bar ${se ? 'badge-evening' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayEvening`, date: dateKey, serviceType: 'sundayEvening', label: 'Sunday Evening' })}>
                           Sunday Evening: {se ? getSpeakerName(se.speakerId) : '+ Assign'}
                         </button>
                       )}
@@ -516,7 +512,7 @@ export default function ChurchScheduleApp() {
                   return (
                     <div key={dateKey} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                       <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e3a5f' }}>{d.date.getDate()}</div>
-                      <button className={`calendar-bar ${we ? 'bar-wednesday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-wednesdayEvening`, date: dateKey, serviceType: 'wednesdayEvening', label: 'Wednesday' })}>
+                      <button className={`calendar-bar ${we ? 'badge-wednesday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${dateKey}-wednesdayEvening`, date: dateKey, serviceType: 'wednesdayEvening', label: 'Wednesday' })}>
                         Wednesday: {we ? getSpeakerName(we.speakerId) : '+ Assign'}
                       </button>
                     </div>
@@ -528,7 +524,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* MODAL: PROFILE */}
+      {/* Profile Modal */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
           <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
@@ -559,7 +555,7 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* MODAL: SPEAKER */}
+      {/* Speaker Modal */}
       {showAddSpeaker && editingSpeaker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
           <div className="card" style={{ maxWidth: '450px', width: '100%' }}>
@@ -587,7 +583,7 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* MODAL: ASSIGN */}
+      {/* Assign Modal */}
       {assigningSlot && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
           <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
