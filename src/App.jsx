@@ -224,6 +224,45 @@ export default function ChurchScheduleApp() {
     setSchedule(newSchedule); setView('calendar');
   };
 
+  // RESTORED: Clear Month Function
+  const clearMonth = () => {
+    const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
+    const newSchedule = { ...schedule };
+    Object.keys(newSchedule).forEach(key => {
+      const slotDate = new Date(key.split('-').slice(0, 3).join('-'));
+      if (slotDate.getFullYear() === year && slotDate.getMonth() === month) delete newSchedule[key];
+    });
+    setSchedule(newSchedule);
+  };
+
+  // RESTORED: Export to PDF Function
+  const exportToPDF = () => {
+    const printWindow = window.open('', '_blank');
+    const monthName = selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const days = getMonthDays(selectedMonth);
+    const sundays = days.filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 0);
+    const wednesdays = days.filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 3);
+    
+    let sundaysHTML = '';
+    sundays.forEach(({ date }) => {
+      const dk = date.toISOString().split('T')[0], sm = schedule[`${dk}-sundayMorning`], c = schedule[`${dk}-communion`], se = schedule[`${dk}-sundayEvening`];
+      let sv = '';
+      if (serviceSettings.sundayMorning.enabled) sv += `<div style="background:#dbeafe;color:#1e40af;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>${serviceSettings.sundayMorning.time}:</strong> ${sm ? speakers.find(s => s.id === sm.speakerId)?.firstName + ' ' + speakers.find(s => s.id === sm.speakerId)?.lastName : '—'}</div>`;
+      if (serviceSettings.communion.enabled) sv += `<div style="background:#fce7f3;color:#be185d;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>Communion:</strong> ${c ? speakers.find(s => s.id === c.speakerId)?.firstName + ' ' + speakers.find(s => s.id === c.speakerId)?.lastName : '—'}</div>`;
+      if (serviceSettings.sundayEvening.enabled) sv += `<div style="background:#ede9fe;color:#5b21b6;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>${serviceSettings.sundayEvening.time}:</strong> ${se ? speakers.find(s => s.id === se.speakerId)?.firstName + ' ' + speakers.find(s => s.id === se.speakerId)?.lastName : '—'}</div>`;
+      sundaysHTML += `<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>${sv}</div>`;
+    });
+
+    let wedsHTML = '';
+    wednesdays.forEach(({ date }) => {
+      const dk = date.toISOString().split('T')[0], w = schedule[`${dk}-wednesdayEvening`];
+      wedsHTML += `<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div><div style="background:#d1fae5;color:#065f46;padding:6px 10px;border-radius:4px;font-size:13px;"><strong>${serviceSettings.wednesdayEvening.time}:</strong> ${w ? speakers.find(s => s.id === w.speakerId)?.firstName + ' ' + speakers.find(s => s.id === w.speakerId)?.lastName : '—'}</div></div>`;
+    });
+
+    printWindow.document.write(`<html><head><title>Schedule - ${monthName}</title><style>body { font-family: sans-serif; padding: 20px; } h1, h2 { text-align: center; color: #1e3a5f; } .container { display: flex; gap: 24px; } .column { flex: 1; } .column-header { background: #1e3a5f; color: white; padding: 12px; text-align: center; font-weight: bold; }</style></head><body><h1>Teaching Schedule</h1><h2>${monthName}</h2><div class="container"><div class="column"><div class="column-header">Sundays</div>${sundaysHTML}</div><div class="column"><div class="column-header">Wednesdays</div>${wedsHTML}</div></div><script>window.print();</script></body></html>`);
+    printWindow.document.close();
+  };
+
   const handleDragStart = (sk) => setDraggedSlot(sk);
   const handleDrop = (tk) => {
     if (!draggedSlot || draggedSlot === tk) return;
@@ -270,22 +309,17 @@ export default function ChurchScheduleApp() {
         .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px; overflow-x: hidden; }
         .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
-        
-        /* RESTORED COLOR PALETTE */
         .service-badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin: 0 8px 4px 0; display: inline-block; }
         .badge-priority { background: #fee2e2; color: #dc2626; }
         .badge-morning { background: #dbeafe; color: #1e40af; }
         .badge-evening { background: #ede9fe; color: #5b21b6; }
         .badge-wednesday { background: #d1fae5; color: #065f46; }
         .badge-communion { background: #fce7f3; color: #be185d; }
-        
-        /* CALENDAR BARS */
         .calendar-bar { padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: grab; display: block; width: 100%; text-align: left; border: none; }
         .bar-empty { background: #e5e7eb; color: #666; cursor: pointer; }
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      {/* HEADER: RESPONSIVE WRAP */}
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px' }}>
@@ -296,7 +330,7 @@ export default function ChurchScheduleApp() {
             <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowSettings(true)}>⚙️ Settings</button>
             <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowProfile(!showProfile)}>👤 {user.displayName}</button>
             {showProfile && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '200px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '220px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
                 <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}><strong>{user.displayName}</strong></div>
                 <button onClick={() => { setShowEditProfile(true); setShowProfile(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer' }}>Edit Profile</button>
                 <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626' }}>Sign Out</button>
@@ -312,14 +346,23 @@ export default function ChurchScheduleApp() {
           <button className={`nav-tab ${view === 'calendar' ? 'active' : ''}`} onClick={() => setView('calendar')}>📅 Calendar</button>
         </nav>
 
-        {/* MONTH SELECTOR: WRAP FIX */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
             <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center', fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
-          <button className="btn-primary" style={{ width: 'auto' }} onClick={generateSchedule}>⚡ Generate Schedule</button>
+          
+          {/* RESTORED: Clear and PDF Buttons in Responsive Header */}
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {view === 'calendar' && (
+              <>
+                <button className="btn-secondary" style={{ color: '#991b1b', borderColor: '#991b1b' }} onClick={clearMonth}>🗑️ Clear Month</button>
+                <button className="btn-secondary" onClick={exportToPDF}>📄 Export PDF</button>
+              </>
+            )}
+            <button className="btn-primary" onClick={generateSchedule}>⚡ Generate Schedule</button>
+          </div>
         </div>
 
         {view === 'speakers' ? (
@@ -352,9 +395,9 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    {serviceSettings.sundayMorning.enabled && <button draggable={!!sm} onDragStart={() => handleDragStart(`${k}-sundayMorning`)} onDrop={() => handleDrop(`${k}-sundayMorning`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-sundayMorning`, date: k, serviceType: 'sundayMorning' })}>Sun Morning: {sm ? speakers.find(s => s.id === sm.speakerId)?.firstName + ' ' + speakers.find(s => s.id === sm.speakerId)?.lastName : '+ Assign'}</button>}
+                    {serviceSettings.sundayMorning.enabled && <button draggable={!!sm} onDragStart={() => handleDragStart(`${k}-sundayMorning`)} onDrop={() => handleDrop(`${k}-sundayMorning`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-sundayMorning`, date: k, serviceType: 'sundayMorning' })}>{serviceSettings.sundayMorning.time}: {sm ? speakers.find(s => s.id === sm.speakerId)?.firstName + ' ' + speakers.find(s => s.id === sm.speakerId)?.lastName : '+ Assign'}</button>}
                     {serviceSettings.communion.enabled && <button draggable={!!c} onDragStart={() => handleDragStart(`${k}-communion`)} onDrop={() => handleDrop(`${k}-communion`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${c ? 'badge-communion' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-communion`, date: k, serviceType: 'communion' })}>Communion: {c ? speakers.find(s => s.id === c.speakerId)?.firstName + ' ' + speakers.find(s => s.id === c.speakerId)?.lastName : '+ Assign'}</button>}
-                    {serviceSettings.sundayEvening.enabled && <button draggable={!!se} onDragStart={() => handleDragStart(`${k}-sundayEvening`)} onDrop={() => handleDrop(`${k}-sundayEvening`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${se ? 'badge-evening' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-sundayEvening`, date: k, serviceType: 'sundayEvening' })}>Sun Evening: {se ? speakers.find(s => s.id === se.speakerId)?.firstName + ' ' + speakers.find(s => s.id === se.speakerId)?.lastName : '+ Assign'}</button>}
+                    {serviceSettings.sundayEvening.enabled && <button draggable={!!se} onDragStart={() => handleDragStart(`${k}-sundayEvening`)} onDrop={() => handleDrop(`${k}-sundayEvening`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${se ? 'badge-evening' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-sundayEvening`, date: k, serviceType: 'sundayEvening' })}>{serviceSettings.sundayEvening.time}: {se ? speakers.find(s => s.id === se.speakerId)?.firstName + ' ' + speakers.find(s => s.id === se.speakerId)?.lastName : '+ Assign'}</button>}
                   </div>
                 );
               })}
@@ -366,7 +409,7 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    <button draggable={!!w} onDragStart={() => handleDragStart(`${k}-wednesdayEvening`)} onDrop={() => handleDrop(`${k}-wednesdayEvening`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${w ? 'badge-wednesday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-wednesdayEvening`, date: k, serviceType: 'wednesdayEvening' })}>Wednesday: {w ? speakers.find(s => s.id === w.speakerId)?.firstName + ' ' + speakers.find(s => s.id === w.speakerId)?.lastName : '+ Assign'}</button>
+                    <button draggable={!!w} onDragStart={() => handleDragStart(`${k}-wednesdayEvening`)} onDrop={() => handleDrop(`${k}-wednesdayEvening`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${w ? 'badge-wednesday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-wednesdayEvening`, date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.time}: {w ? speakers.find(s => s.id === w.speakerId)?.firstName + ' ' + speakers.find(s => s.id === w.speakerId)?.lastName : '+ Assign'}</button>
                   </div>
                 );
               })}
@@ -375,7 +418,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* MODAL: PROFILE (FIXED OVERFLOW) */}
+      {/* MODAL: PROFILE */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
@@ -417,7 +460,7 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* MODAL: SPEAKER (RESTORED REPEAT RULES) */}
+      {/* MODAL: SPEAKER */}
       {showAddSpeaker && editingSpeaker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '450px', maxHeight: '90vh', overflowY: 'auto' }}>
