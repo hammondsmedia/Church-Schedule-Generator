@@ -10,13 +10,11 @@ const FIREBASE_CONFIG = {
   appId: "1:154699704030:web:eba731b832f79a8170444f"
 };
 
-// Firebase SDK URLs
 const FIREBASE_APP_URL = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
 const FIREBASE_AUTH_URL = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js';
 const FIREBASE_FIRESTORE_URL = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
 
 export default function ChurchScheduleApp() {
-  // Auth and Profile state
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -28,7 +26,6 @@ export default function ChurchScheduleApp() {
   const [churchName, setChurchName] = useState('');
   const [dataLoading, setDataLoading] = useState(false);
   
-  // Profile Edit States
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -39,7 +36,6 @@ export default function ChurchScheduleApp() {
   const db = useRef(null);
   const auth = useRef(null);
 
-  // App state
   const [speakers, setSpeakers] = useState([]);
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -57,7 +53,6 @@ export default function ChurchScheduleApp() {
     communion: { enabled: true, label: 'Communion', time: '' }
   });
 
-  // Load Firebase SDK
   useEffect(() => {
     const loadFirebase = async () => {
       try {
@@ -65,53 +60,36 @@ export default function ChurchScheduleApp() {
           initializeFirebase();
           return;
         }
-        const loadScript = (url) => {
-          return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = url;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
-        };
+        const loadScript = (url) => new Promise((res, rej) => {
+          const s = document.createElement('script'); s.src = url; s.onload = res; s.onerror = rej; document.head.appendChild(s);
+        });
         await loadScript(FIREBASE_APP_URL);
         await loadScript(FIREBASE_AUTH_URL);
         await loadScript(FIREBASE_FIRESTORE_URL);
         initializeFirebase();
-      } catch (error) {
-        console.error('Failed to load Firebase:', error);
-        setAuthLoading(false);
-      }
+      } catch (err) { console.error('Firebase load failed', err); setAuthLoading(false); }
     };
-
     const initializeFirebase = () => {
-      if (!window.firebase.apps.length) {
-        firebaseApp.current = window.firebase.initializeApp(FIREBASE_CONFIG);
-      } else {
-        firebaseApp.current = window.firebase.apps[0];
-      }
+      if (!window.firebase.apps.length) firebaseApp.current = window.firebase.initializeApp(FIREBASE_CONFIG);
+      else firebaseApp.current = window.firebase.apps[0];
       auth.current = window.firebase.auth();
       db.current = window.firebase.firestore();
-      auth.current.onAuthStateChanged((user) => {
-        setUser(user);
-        setAuthLoading(false);
-        if (user) {
-          loadUserData(user.uid);
-        }
+      auth.current.onAuthStateChanged((u) => {
+        setUser(u); setAuthLoading(false);
+        if (u) loadUserData(u.uid);
       });
       setFirebaseReady(true);
     };
     loadFirebase();
   }, []);
 
-  // Load user data from Firestore
-  const loadUserData = async (userId) => {
+  const loadUserData = async (uid) => {
     if (!db.current) return;
     setDataLoading(true);
     try {
-      const userDoc = await db.current.collection('users').doc(userId).get();
-      if (userDoc.exists) {
-        const data = userDoc.data();
+      const doc = await db.current.collection('users').doc(uid).get();
+      if (doc.exists) {
+        const data = doc.data();
         if (data.speakers) setSpeakers(data.speakers);
         if (data.schedule) setSchedule(data.schedule);
         if (data.serviceSettings) setServiceSettings(data.serviceSettings);
@@ -120,306 +98,164 @@ export default function ChurchScheduleApp() {
         setUserLastName(data.lastName || data.name?.split(' ').slice(1).join(' ') || '');
         setNewEmail(auth.current.currentUser?.email || '');
       }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
+    } catch (err) { console.error('Error loading data', err); }
     setDataLoading(false);
   };
 
-  // Save user data to Firestore
   const saveUserData = async () => {
     if (!db.current || !user || dataLoading) return;
     try {
       await db.current.collection('users').doc(user.uid).set({
-        speakers,
-        schedule,
-        serviceSettings,
-        churchName,
-        updatedAt: new Date().toISOString()
+        speakers, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString()
       }, { merge: true });
-    } catch (error) {
-      console.error('Error saving user data:', error);
-    }
+    } catch (err) { console.error('Save failed', err); }
   };
 
   useEffect(() => {
     if (user && firebaseReady && !dataLoading) {
-      const timeoutId = setTimeout(() => {
-        saveUserData();
-      }, 1000);
-      return () => clearTimeout(timeoutId);
+      const t = setTimeout(() => saveUserData(), 1000);
+      return () => clearTimeout(t);
     }
   }, [speakers, schedule, serviceSettings, churchName, user, firebaseReady, dataLoading]);
 
-  // Auth/Profile Handlers
   const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-    setAuthError('');
+    e.preventDefault(); setAuthError('');
     try {
-      const currentUser = auth.current.currentUser;
-      const fullName = `${userFirstName} ${userLastName}`.trim();
-      if (newEmail !== currentUser.email) await currentUser.updateEmail(newEmail);
-      if (newPassword) {
-        if (newPassword.length < 6) throw new Error('Password must be at least 6 characters');
-        await currentUser.updatePassword(newPassword);
-      }
-      await db.current.collection('users').doc(currentUser.uid).set({
-        firstName: userFirstName,
-        lastName: userLastName,
-        name: fullName,
-        email: newEmail,
-      }, { merge: true });
-      await currentUser.updateProfile({ displayName: fullName });
-      alert('Profile updated successfully!');
-      setShowEditProfile(false);
-      setNewPassword('');
-    } catch (error) {
-      setAuthError(error.message);
-      if (error.code === 'auth/requires-recent-login') {
-        alert('Please sign out and sign back in to change sensitive information.');
-      }
-    }
+      const u = auth.current.currentUser;
+      const full = `${userFirstName} ${userLastName}`.trim();
+      if (newEmail !== u.email) await u.updateEmail(newEmail);
+      if (newPassword) await u.updatePassword(newPassword);
+      await db.current.collection('users').doc(u.uid).set({ firstName: userFirstName, lastName: userLastName, name: full, email: newEmail }, { merge: true });
+      await u.updateProfile({ displayName: full });
+      alert('Profile updated!'); setShowEditProfile(false); setNewPassword('');
+    } catch (err) { setAuthError(err.message); }
   };
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setAuthError('');
-    try {
-      await auth.current.signInWithEmailAndPassword(authEmail, authPassword);
-      setAuthEmail('');
-      setAuthPassword('');
-    } catch (error) {
-      setAuthError(getAuthErrorMessage(error.code));
-    }
+    e.preventDefault(); setAuthError('');
+    try { await auth.current.signInWithEmailAndPassword(authEmail, authPassword); setAuthEmail(''); setAuthPassword(''); }
+    catch (err) { setAuthError(err.message); }
   };
 
   const handleRegister = async (e) => {
-    e.preventDefault();
-    setAuthError('');
-    if (authPassword.length < 6) {
-      setAuthError('Password must be at least 6 characters');
-      return;
-    }
+    e.preventDefault(); setAuthError('');
     try {
-      const result = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
-      await result.user.updateProfile({ displayName: authName });
-      const [fName, ...lNameParts] = authName.split(' ');
-      const lName = lNameParts.join(' ');
-      const initialData = {
-        email: authEmail,
-        name: authName,
-        firstName: fName || '',
-        lastName: lName || '',
-        churchName: churchName || 'My Church',
-        speakers: [],
-        schedule: {},
-        serviceSettings: {
-          sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
-          sundayEvening: { enabled: true, label: 'Sunday Evening', time: '6:00 PM' },
-          wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:00 PM' },
-          communion: { enabled: true, label: 'Communion', time: '' }
-        },
-        createdAt: new Date().toISOString()
-      };
-      await db.current.collection('users').doc(result.user.uid).set(initialData);
-      setChurchName(initialData.churchName);
-      setServiceSettings(initialData.serviceSettings);
-      setAuthEmail('');
-      setAuthPassword('');
-      setAuthName('');
-    } catch (error) {
-      setAuthError(getAuthErrorMessage(error.code));
-    }
+      const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
+      await r.user.updateProfile({ displayName: authName });
+      const f = authName.split(' ')[0], l = authName.split(' ').slice(1).join(' ');
+      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, firstName: f, lastName: l, churchName: churchName || 'My Church', speakers: [], schedule: {}, serviceSettings, createdAt: new Date().toISOString() });
+    } catch (err) { setAuthError(err.message); }
   };
 
-  const handleLogout = async () => {
-    try {
-      await auth.current.signOut();
-      setSpeakers([]);
-      setSchedule({});
-      setChurchName('');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
+  const handleLogout = async () => { await auth.current.signOut(); setSpeakers([]); setSchedule({}); };
 
-  const getAuthErrorMessage = (code) => {
-    switch (code) {
-      case 'auth/email-already-in-use': return 'This email is already registered';
-      case 'auth/invalid-email': return 'Invalid email address';
-      case 'auth/weak-password': return 'Password is too weak';
-      case 'auth/user-not-found': return 'No account found with this email';
-      case 'auth/wrong-password': return 'Incorrect password';
-      default: return 'An error occurred. Please try again.';
-    }
-  };
-
-  // Schedule Logic
   const getMonthDays = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const days = [];
-    const startPadding = firstDay.getDay();
-    for (let i = startPadding - 1; i >= 0; i--) days.push({ date: new Date(year, month, -i), isCurrentMonth: false });
-    for (let i = 1; i <= lastDay.getDate(); i++) days.push({ date: new Date(year, month, i), isCurrentMonth: true });
-    const endPadding = 42 - days.length;
-    for (let i = 1; i <= endPadding; i++) days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false });
-    return days;
+    const y = date.getFullYear(), m = date.getMonth();
+    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+    const d = [];
+    for (let i = first.getDay() - 1; i >= 0; i--) d.push({ date: new Date(y, m, -i), isCurrentMonth: false });
+    for (let i = 1; i <= last.getDate(); i++) d.push({ date: new Date(y, m, i), isCurrentMonth: true });
+    while (d.length < 42) d.push({ date: new Date(y, m + 1, d.length - last.getDate() - (first.getDay() - 1)), isCurrentMonth: false });
+    return d;
   };
 
-  const isSpeakerAvailable = (speaker, date, serviceType) => {
-    if (!speaker.availability[serviceType]) return false;
-    const dateStr = date.toISOString().split('T')[0];
-    for (const block of (speaker.blockOffDates || [])) {
-      if (dateStr >= block.start && dateStr <= block.end) return false;
-    }
+  const isSpeakerAvailable = (s, d, type) => {
+    if (!s.availability[type]) return false;
+    const ds = d.toISOString().split('T')[0];
+    for (const b of (s.blockOffDates || [])) if (ds >= b.start && ds <= b.end) return false;
     return true;
   };
 
-  const shuffleArray = (array, seed) => {
-    const shuffled = [...array];
-    let currentIndex = shuffled.length;
-    const seededRandom = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-    while (currentIndex > 0) {
-      const randomIndex = Math.floor(seededRandom() * currentIndex);
-      currentIndex--;
-      [shuffled[currentIndex], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[currentIndex]];
-    }
-    return shuffled;
-  };
-
   const generateSchedule = () => {
-    const days = getMonthDays(selectedMonth);
-    const newSchedule = { ...schedule }; // Persistent month fix
+    const days = getMonthDays(selectedMonth), newSchedule = { ...schedule };
     const seed = selectedMonth.getFullYear() * 12 + selectedMonth.getMonth();
-    const speakerCounts = {};
-    speakers.forEach(s => { speakerCounts[s.id] = { sundayMorning: 0, sundayEvening: 0, wednesdayEvening: 0, communion: 0, total: 0 }; });
+    const counts = {}; speakers.forEach(s => counts[s.id] = { sundayMorning: 0, sundayEvening: 0, wednesdayEvening: 0, communion: 0 });
     const slots = { sundayMorning: [], sundayEvening: [], wednesdayEvening: [], communion: [] };
-    let sundayCount = 0;
+    let sc = 0;
     days.forEach(({ date, isCurrentMonth }) => {
       if (!isCurrentMonth) return;
-      const dayOfWeek = date.getDay();
-      const dateKey = date.toISOString().split('T')[0];
-      if (dayOfWeek === 0) {
-        sundayCount++;
-        if (serviceSettings.sundayMorning.enabled) slots.sundayMorning.push({ dateKey, date, weekOfMonth: sundayCount });
-        if (serviceSettings.sundayEvening.enabled) slots.sundayEvening.push({ dateKey, date, weekOfMonth: sundayCount });
-        if (serviceSettings.communion.enabled && serviceSettings.sundayMorning.enabled) slots.communion.push({ dateKey, date, weekOfMonth: sundayCount });
+      const dw = date.getDay(), dk = date.toISOString().split('T')[0];
+      if (dw === 0) {
+        sc++;
+        if (serviceSettings.sundayMorning.enabled) slots.sundayMorning.push({ dk, date, week: sc });
+        if (serviceSettings.sundayEvening.enabled) slots.sundayEvening.push({ dk, date, week: sc });
+        if (serviceSettings.communion.enabled && serviceSettings.sundayMorning.enabled) slots.communion.push({ dk, date, week: sc });
       }
-      if (dayOfWeek === 3 && serviceSettings.wednesdayEvening.enabled) slots.wednesdayEvening.push({ dateKey, date, weekOfMonth: Math.ceil(date.getDate() / 7) });
+      if (dw === 3 && serviceSettings.wednesdayEvening.enabled) slots.wednesdayEvening.push({ dk, date, week: Math.ceil(date.getDate() / 7) });
     });
 
-    const getSortedAvailableSpeakers = (date, serviceType, excludeSpeakerId = null) => {
-      let available = speakers.filter(s => isSpeakerAvailable(s, date, serviceType)).filter(s => excludeSpeakerId ? s.id !== excludeSpeakerId : true);
-      const priority1 = available.filter(s => s.priority === 1);
-      const priority2 = available.filter(s => s.priority === 2);
-      const defaultPriority = available.filter(s => !s.priority || s.priority === 0);
-      const serviceOffset = serviceType === 'sundayMorning' ? 0 : serviceType === 'sundayEvening' ? 1000 : serviceType === 'wednesdayEvening' ? 2000 : 3000;
-      const shuffledDefault = shuffleArray(defaultPriority, seed + serviceOffset);
-      const sortByCount = (a, b) => speakerCounts[a.id][serviceType] - speakerCounts[b.id][serviceType];
-      priority1.sort(sortByCount); priority2.sort(sortByCount); shuffledDefault.sort(sortByCount);
-      return [...priority1, ...priority2, ...shuffledDefault];
+    const getAvailable = (d, type, exId = null) => {
+      let av = speakers.filter(s => isSpeakerAvailable(s, d, type) && s.id !== exId);
+      const p1 = av.filter(s => s.priority === 1), p2 = av.filter(s => s.priority === 2), def = av.filter(s => !s.priority);
+      const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
+      const shuf = (arr) => {
+        let a = [...arr], cur = a.length, s = seed + off;
+        while (cur > 0) { let r = Math.floor(((s = (s * 9301 + 49297) % 233280) / 233280) * cur); cur--; [a[cur], a[r]] = [a[r], a[cur]]; }
+        return a;
+      };
+      const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
+      return [...p1.sort(sort), ...p2.sort(sort), ...shuf(def).sort(sort)];
     };
 
-    // First pass: Assign repeat rules
-    const assignRepeatRules = (serviceType, slotList) => {
-      speakers.forEach(speaker => {
-        const rules = (speaker.repeatRules || []).filter(r => r.serviceType === serviceType);
-        rules.forEach(rule => {
-          slotList.forEach(slot => {
-            if (!isSpeakerAvailable(speaker, slot.date, serviceType)) return;
-            const slotKey = `${slot.dateKey}-${serviceType}`;
-            if (newSchedule[slotKey]) return;
-            
-            let shouldAssign = false;
-            if (rule.pattern === 'everyOther') {
-              shouldAssign = (rule.startWeek === 'odd') ? (slot.weekOfMonth % 2 !== 0) : (slot.weekOfMonth % 2 === 0);
-            } else if (rule.pattern === 'nthWeek') {
-              shouldAssign = slot.weekOfMonth === rule.nthWeek;
-            }
-            
-            if (shouldAssign) {
-              newSchedule[slotKey] = { speakerId: speaker.id, date: slot.dateKey, serviceType };
-              speakerCounts[speaker.id][serviceType]++;
+    const applyRepeat = (type, list) => {
+      speakers.forEach(s => {
+        (s.repeatRules || []).filter(r => r.serviceType === type).forEach(r => {
+          list.forEach(sl => {
+            const sk = `${sl.dk}-${type}`;
+            if (!newSchedule[sk] && isSpeakerAvailable(s, sl.date, type)) {
+              if ((r.pattern === 'everyOther' && ((r.startWeek === 'odd') ? (sl.week % 2 !== 0) : (sl.week % 2 === 0))) || (r.pattern === 'nthWeek' && sl.week === r.nthWeek)) {
+                newSchedule[sk] = { speakerId: s.id, date: sl.dk, serviceType: type }; counts[s.id][type]++;
+              }
             }
           });
         });
       });
     };
 
-    assignRepeatRules('sundayMorning', slots.sundayMorning);
-    assignRepeatRules('sundayEvening', slots.sundayEvening);
-    assignRepeatRules('wednesdayEvening', slots.wednesdayEvening);
-
-    const fillSlots = (serviceType, slotList, excludeFromSlotKey = null) => {
-      slotList.forEach(slot => {
-        const slotKey = `${slot.dateKey}-${serviceType}`;
-        if (newSchedule[slotKey]) return;
-        let excludeSpeakerId = null;
-        if (excludeFromSlotKey) excludeSpeakerId = newSchedule[`${slot.dateKey}-${excludeFromSlotKey}`]?.speakerId;
-        const available = getSortedAvailableSpeakers(slot.date, serviceType, excludeSpeakerId);
-        if (available.length > 0) {
-          const selected = available[0];
-          newSchedule[slotKey] = { speakerId: selected.id, date: slot.dateKey, serviceType };
-          speakerCounts[selected.id][serviceType]++;
-        }
-      });
-    };
-
-    fillSlots('sundayMorning', slots.sundayMorning);
-    fillSlots('communion', slots.communion, 'sundayMorning');
-    fillSlots('sundayEvening', slots.sundayEvening);
-    fillSlots('wednesdayEvening', slots.wednesdayEvening);
-    setSchedule(newSchedule);
-    setView('calendar');
+    ['sundayMorning', 'sundayEvening', 'wednesdayEvening'].forEach(t => applyRepeat(t, slots[t]));
+    const fill = (t, list, ex) => list.forEach(sl => {
+      const sk = `${sl.dk}-${t}`;
+      if (!newSchedule[sk]) {
+        const sel = getAvailable(sl.date, t, ex ? newSchedule[`${sl.dk}-${ex}`]?.speakerId : null)[0];
+        if (sel) { newSchedule[sk] = { speakerId: sel.id, date: sl.dk, serviceType: t }; counts[sel.id][t]++; }
+      }
+    });
+    fill('sundayMorning', slots.sundayMorning); fill('communion', slots.communion, 'sundayMorning'); fill('sundayEvening', slots.sundayEvening); fill('wednesdayEvening', slots.wednesdayEvening);
+    setSchedule(newSchedule); setView('calendar');
   };
 
-  const getSpeakerName = (id) => {
-    const speaker = speakers.find(s => s.id === id);
-    return speaker ? `${speaker.firstName} ${speaker.lastName}` : '';
+  const handleDragStart = (sk) => setDraggedSlot(sk);
+  const handleDrop = (tk) => {
+    if (!draggedSlot || draggedSlot === tk) return;
+    const ns = { ...schedule }, d = ns[draggedSlot], t = ns[tk];
+    if (d) ns[tk] = { ...d, date: tk.split('-')[0], serviceType: tk.split('-').slice(1).join('-') };
+    if (t) ns[draggedSlot] = { ...t, date: draggedSlot.split('-')[0], serviceType: draggedSlot.split('-').slice(1).join('-') };
+    else delete ns[draggedSlot];
+    setSchedule(ns); setDraggedSlot(null);
   };
 
-  const assignSpeakerToSlot = (speakerId) => {
+  const assignSpeakerToSlot = (sid) => {
     if (!assigningSlot) return;
-    const newSchedule = { ...schedule };
-    newSchedule[assigningSlot.slotKey] = { speakerId, date: assigningSlot.date, serviceType: assigningSlot.serviceType };
-    setSchedule(newSchedule);
+    setSchedule({ ...schedule, [assigningSlot.slotKey]: { speakerId: sid, date: assigningSlot.date, serviceType: assigningSlot.serviceType } });
     setAssigningSlot(null);
   };
 
-  const handleDragStart = (slotKey) => setDraggedSlot(slotKey);
-  const handleDrop = (targetSlotKey) => {
-    if (!draggedSlot || draggedSlot === targetSlotKey) { setDraggedSlot(null); return; }
-    const newSchedule = { ...schedule };
-    const draggedData = newSchedule[draggedSlot];
-    const targetData = newSchedule[targetSlotKey];
-    if (draggedData) { newSchedule[targetSlotKey] = { ...draggedData, date: targetSlotKey.split('-')[0], serviceType: targetSlotKey.split('-').slice(1).join('-') }; }
-    if (targetData) { newSchedule[draggedSlot] = { ...targetData, date: draggedSlot.split('-')[0], serviceType: draggedSlot.split('-').slice(1).join('-') }; }
-    else { delete newSchedule[draggedSlot]; }
-    setSchedule(newSchedule);
-    setDraggedSlot(null);
-  };
+  const getAvailableSpeakersForSlot = (d, t) => speakers.filter(s => isSpeakerAvailable(s, new Date(d + 'T12:00:00'), t));
 
-  if (authLoading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>;
+  if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Loading...</div>;
 
   if (!user) return (
-    <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <style>{`* { box-sizing: border-box; } .auth-input { width: 100%; padding: 14px 16px; border: 2px solid #e5e0d8; border-radius: 10px; margin-bottom: 16px; }`}</style>
-      <div style={{ background: 'white', padding: '48px 40px', borderRadius: '24px', maxWidth: '440px', width: '100%' }}>
-        <h1 style={{ textAlign: 'center', color: '#1e3a5f' }}>✝ Church Schedule</h1>
+    <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <style>{`* { box-sizing: border-box; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; }`}</style>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px' }}>
+        <h2 style={{ textAlign: 'center', color: '#1e3a5f' }}>✝ Church Schedule</h2>
         <form onSubmit={authView === 'login' ? handleLogin : handleRegister}>
-          {authView === 'register' && <input className="auth-input" placeholder="Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
-          <input className="auth-input" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
-          <input className="auth-input" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
-          <button type="submit" style={{ width: '100%', padding: '14px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>
-            {authView === 'login' ? 'Sign In' : 'Sign Up'}
-          </button>
+          {authView === 'register' && <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
+          <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
+          <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
+          <button type="submit" style={{ width: '100%', padding: '12px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>{authView === 'login' ? 'Login' : 'Sign Up'}</button>
         </form>
-        <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ width: '100%', background: 'none', border: 'none', color: '#1e3a5f', marginTop: '20px', cursor: 'pointer' }}>
-          {authView === 'login' ? "Need an account? Sign Up" : "Have an account? Sign In"}
-        </button>
+        <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ width: '100%', border: 'none', background: 'none', marginTop: '12px', cursor: 'pointer', color: '#1e3a5f' }}>{authView === 'login' ? 'Create Account' : 'Back to Login'}</button>
       </div>
     </div>
   );
@@ -429,33 +265,38 @@ export default function ChurchScheduleApp() {
       <style>{`
         * { box-sizing: border-box; }
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap');
-        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 8px rgba(30, 58, 95, 0.2); }
-        .btn-secondary { background: white; color: #1e3a5f; border: 2px solid #1e3a5f; padding: 10px 22px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-        .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px; }
-        .nav-tab { padding: 12px 24px; border: none; background: transparent; font-weight: 600; font-size: 15px; color: #666; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; }
+        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; flex-shrink: 0; }
+        .btn-secondary { background: white; color: #1e3a5f; border: 2px solid #1e3a5f; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px; overflow-x: hidden; }
+        .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
         
-        .service-badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-right: 8px; margin-bottom: 4px; display: inline-block; }
+        /* RESTORED COLOR PALETTE */
+        .service-badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin: 0 8px 4px 0; display: inline-block; }
         .badge-priority { background: #fee2e2; color: #dc2626; }
         .badge-morning { background: #dbeafe; color: #1e40af; }
         .badge-evening { background: #ede9fe; color: #5b21b6; }
         .badge-wednesday { background: #d1fae5; color: #065f46; }
         .badge-communion { background: #fce7f3; color: #be185d; }
         
-        .calendar-bar { padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: grab; display: block; width: 100%; text-align: left; border: none; transition: transform 0.1s ease; }
+        /* CALENDAR BARS */
+        .calendar-bar { padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: grab; display: block; width: 100%; text-align: left; border: none; }
         .bar-empty { background: #e5e7eb; color: #666; cursor: pointer; }
-        
-        .input-field { width: 100%; padding: 12px 16px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
+        .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
+      {/* HEADER: RESPONSIVE WRAP */}
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div><h1 style={{ margin: 0 }}>✝ {churchName || 'Church Schedule'}</h1><p style={{ opacity: 0.8 }}>Manage speakers and schedules</p></div>
-          <div style={{ display: 'flex', gap: '12px', position: 'relative' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+          <div style={{ flex: '1 1 300px' }}>
+            <h1 style={{ margin: 0, fontSize: 'clamp(24px, 5vw, 36px)' }}>✝ {churchName || 'Church Schedule'}</h1>
+            <p style={{ opacity: 0.8, fontSize: '14px', marginTop: '4px' }}>Manage speakers and generated schedules</p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowSettings(true)}>⚙️ Settings</button>
             <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowProfile(!showProfile)}>👤 {user.displayName}</button>
             {showProfile && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '220px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '200px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
                 <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}><strong>{user.displayName}</strong></div>
                 <button onClick={() => { setShowEditProfile(true); setShowProfile(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer' }}>Edit Profile</button>
                 <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626' }}>Sign Out</button>
@@ -465,147 +306,89 @@ export default function ChurchScheduleApp() {
         </div>
       </header>
 
-      <main style={{ maxWidth: '1200px', margin: '24px auto', padding: '0 24px' }}>
-        <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd' }}>
+      <main style={{ maxWidth: '1200px', margin: '24px auto', padding: '0 16px' }}>
+        <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto' }}>
           <button className={`nav-tab ${view === 'speakers' ? 'active' : ''}`} onClick={() => setView('speakers')}>👤 Speakers</button>
           <button className={`nav-tab ${view === 'calendar' ? 'active' : ''}`} onClick={() => setView('calendar')}>📅 Calendar</button>
         </nav>
 
-        {view === 'speakers' && (
-          <div style={{ padding: '24px 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '24px' }}>Manage Speakers ({speakers.length})</h2>
-              <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: { sundayMorning: false, sundayEvening: false, wednesdayEvening: false, communion: false }, blockOffDates: [], repeatRules: [], priority: 0 }); setShowAddSpeaker(true); }}>+ Add Speaker</button>
-            </div>
+        {/* MONTH SELECTOR: WRAP FIX */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
+            <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
+            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center', fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+            <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
+          </div>
+          <button className="btn-primary" style={{ width: 'auto' }} onClick={generateSchedule}>⚡ Generate Schedule</button>
+        </div>
+
+        {view === 'speakers' ? (
+          <div>
             {speakers.map(s => (
-              <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 12px 0', color: '#1e3a5f', fontSize: '20px' }}>{s.firstName} {s.lastName}</h3>
-                  <div style={{ marginBottom: '8px' }}>
-                    {s.priority > 0 && <span className="service-badge badge-priority">★ Priority {s.priority}</span>}
-                    {s.availability.sundayMorning && <span className="service-badge badge-morning">Sunday Morning</span>}
-                    {s.availability.sundayEvening && <span className="service-badge badge-evening">Sunday Evening</span>}
-                    {s.availability.wednesdayEvening && <span className="service-badge badge-wednesday">Wednesday Evening</span>}
-                    {s.availability.communion && <span className="service-badge badge-communion">Communion</span>}
-                  </div>
-                  {s.repeatRules?.length > 0 && (
-                    <div style={{ fontSize: '13px', color: '#666' }}>
-                      <strong>Repeat Rules:</strong> {s.repeatRules.map((r, i) => (
-                        <span key={i} style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', marginRight: '4px' }}>
-                            {r.serviceType} ({r.pattern})
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <h3 style={{ margin: '0 0 8px 0', color: '#1e3a5f' }}>{s.firstName} {s.lastName}</h3>
+                  {s.priority > 0 && <span className="service-badge badge-priority">★ Priority {s.priority}</span>}
+                  {s.availability.sundayMorning && <span className="service-badge badge-morning">Sunday Morning</span>}
+                  {s.availability.sundayEvening && <span className="service-badge badge-evening">Sunday Evening</span>}
+                  {s.availability.wednesdayEvening && <span className="service-badge badge-wednesday">Wednesday Evening</span>}
+                  {s.availability.communion && <span className="service-badge badge-communion">Communion</span>}
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn-secondary" style={{ padding: '8px 16px' }} onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
-                  <button style={{ padding: '8px 16px', background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }} onClick={() => setSpeakers(speakers.filter(sp => sp.id !== s.id))}>Remove</button>
+                  <button className="btn-secondary" style={{ padding: '8px 12px' }} onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
+                  <button style={{ padding: '8px 12px', background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '8px', cursor: 'pointer' }} onClick={() => setSpeakers(speakers.filter(sp => sp.id !== s.id))}>Remove</button>
                 </div>
               </div>
             ))}
+            <button className="btn-primary" style={{ width: '100%', marginTop: '20px' }} onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: {}, blockOffDates: [], repeatRules: [] }); setShowAddSpeaker(true); }}>+ Add Speaker</button>
           </div>
-        )}
-
-        {view === 'calendar' && (
-          <div style={{ padding: '24px 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
-                <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '200px', textAlign: 'center', fontSize: '28px' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
-                <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
-              </div>
-              <button className="btn-primary" onClick={generateSchedule}>⚡ Generate Schedule</button>
+        ) : (
+          <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 300px', borderRight: '1px solid #eee' }}>
+              <div style={{ padding: '12px', textAlign: 'center', background: '#f8f6f3', fontWeight: 'bold' }}>Sundays</div>
+              {getMonthDays(selectedMonth).filter(d => d.isCurrentMonth && d.date.getDay() === 0).map(d => {
+                const k = d.date.toISOString().split('T')[0];
+                const sm = schedule[`${k}-sundayMorning`], c = schedule[`${k}-communion`], se = schedule[`${k}-sundayEvening`];
+                return (
+                  <div key={k} style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
+                    <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
+                    {serviceSettings.sundayMorning.enabled && <button draggable={!!sm} onDragStart={() => handleDragStart(`${k}-sundayMorning`)} onDrop={() => handleDrop(`${k}-sundayMorning`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-sundayMorning`, date: k, serviceType: 'sundayMorning' })}>Sun Morning: {sm ? speakers.find(s => s.id === sm.speakerId)?.firstName + ' ' + speakers.find(s => s.id === sm.speakerId)?.lastName : '+ Assign'}</button>}
+                    {serviceSettings.communion.enabled && <button draggable={!!c} onDragStart={() => handleDragStart(`${k}-communion`)} onDrop={() => handleDrop(`${k}-communion`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${c ? 'badge-communion' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-communion`, date: k, serviceType: 'communion' })}>Communion: {c ? speakers.find(s => s.id === c.speakerId)?.firstName + ' ' + speakers.find(s => s.id === c.speakerId)?.lastName : '+ Assign'}</button>}
+                    {serviceSettings.sundayEvening.enabled && <button draggable={!!se} onDragStart={() => handleDragStart(`${k}-sundayEvening`)} onDrop={() => handleDrop(`${k}-sundayEvening`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${se ? 'badge-evening' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-sundayEvening`, date: k, serviceType: 'sundayEvening' })}>Sun Evening: {se ? speakers.find(s => s.id === se.speakerId)?.firstName + ' ' + speakers.find(s => s.id === se.speakerId)?.lastName : '+ Assign'}</button>}
+                  </div>
+                );
+              })}
             </div>
-            <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex' }}>
-              <div style={{ flex: 1, borderRight: '1px solid #eee' }}>
-                <div style={{ padding: '16px', textAlign: 'center', background: '#f8f6f3', borderBottom: '1px solid #eee' }}><strong>Sundays</strong></div>
-                {getMonthDays(selectedMonth).filter(d => d.isCurrentMonth && d.date.getDay() === 0).map(d => {
-                  const dateKey = d.date.toISOString().split('T')[0];
-                  const sm = schedule[`${dateKey}-sundayMorning`];
-                  const com = schedule[`${dateKey}-communion`];
-                  const se = schedule[`${dateKey}-sundayEvening`];
-                  return (
-                    <div key={dateKey} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
-                      <div style={{ fontWeight: '600', marginBottom: '8px' }}>{d.date.getDate()}</div>
-                      {serviceSettings.sundayMorning.enabled && (
-                        <button 
-                          className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} 
-                          draggable={!!sm}
-                          onDragStart={() => sm && handleDragStart(`${dateKey}-sundayMorning`)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleDrop(`${dateKey}-sundayMorning`)}
-                          onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayMorning`, date: dateKey, serviceType: 'sundayMorning', label: serviceSettings.sundayMorning.label })}
-                        >
-                          {serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}
-                        </button>
-                      )}
-                      {serviceSettings.communion.enabled && (
-                        <button 
-                          className={`calendar-bar ${com ? 'badge-communion' : 'bar-empty'}`} 
-                          draggable={!!com}
-                          onDragStart={() => com && handleDragStart(`${dateKey}-communion`)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleDrop(`${dateKey}-communion`)}
-                          onClick={() => setAssigningSlot({ slotKey: `${dateKey}-communion`, date: dateKey, serviceType: 'communion', label: 'Communion' })}
-                        >
-                          Communion: {com ? getSpeakerName(com.speakerId) : '+ Assign'}
-                        </button>
-                      )}
-                      {serviceSettings.sundayEvening.enabled && (
-                        <button 
-                          className={`calendar-bar ${se ? 'badge-evening' : 'bar-empty'}`} 
-                          draggable={!!se}
-                          onDragStart={() => se && handleDragStart(`${dateKey}-sundayEvening`)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleDrop(`${dateKey}-sundayEvening`)}
-                          onClick={() => setAssigningSlot({ slotKey: `${dateKey}-sundayEvening`, date: dateKey, serviceType: 'sundayEvening', label: serviceSettings.sundayEvening.label })}
-                        >
-                          {serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ padding: '16px', textAlign: 'center', background: '#f8f6f3', borderBottom: '1px solid #eee' }}><strong>Wednesdays</strong></div>
-                {getMonthDays(selectedMonth).filter(d => d.isCurrentMonth && d.date.getDay() === 3).map(d => {
-                  const dateKey = d.date.toISOString().split('T')[0];
-                  const we = schedule[`${dateKey}-wednesdayEvening`];
-                  return (
-                    <div key={dateKey} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
-                      <div style={{ fontWeight: '600', marginBottom: '8px' }}>{d.date.getDate()}</div>
-                      <button 
-                        className={`calendar-bar ${we ? 'badge-wednesday' : 'bar-empty'}`} 
-                        draggable={!!we}
-                        onDragStart={() => we && handleDragStart(`${dateKey}-wednesdayEvening`)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => handleDrop(`${dateKey}-wednesdayEvening`)}
-                        onClick={() => setAssigningSlot({ slotKey: `${dateKey}-wednesdayEvening`, date: dateKey, serviceType: 'wednesdayEvening', label: serviceSettings.wednesdayEvening.label })}
-                      >
-                        {serviceSettings.wednesdayEvening.label}: {we ? getSpeakerName(we.speakerId) : '+ Assign'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+            <div style={{ flex: '1 1 300px' }}>
+              <div style={{ padding: '12px', textAlign: 'center', background: '#f8f6f3', fontWeight: 'bold' }}>Wednesdays</div>
+              {getMonthDays(selectedMonth).filter(d => d.isCurrentMonth && d.date.getDay() === 3).map(d => {
+                const k = d.date.toISOString().split('T')[0], w = schedule[`${k}-wednesdayEvening`];
+                return (
+                  <div key={k} style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
+                    <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
+                    <button draggable={!!w} onDragStart={() => handleDragStart(`${k}-wednesdayEvening`)} onDrop={() => handleDrop(`${k}-wednesdayEvening`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${w ? 'badge-wednesday' : 'bar-empty'}`} onClick={() => setAssigningSlot({ slotKey: `${k}-wednesdayEvening`, date: k, serviceType: 'wednesdayEvening' })}>Wednesday: {w ? speakers.find(s => s.id === w.speakerId)?.firstName + ' ' + speakers.find(s => s.id === w.speakerId)?.lastName : '+ Assign'}</button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
       </main>
 
-      {/* MODAL: PROFILE */}
+      {/* MODAL: PROFILE (FIXED OVERFLOW) */}
       {showEditProfile && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
-            <h3 style={{ margin: '0 0 20px 0', color: '#1e3a5f', fontSize: '22px' }}>Edit Profile</h3>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
+            <h3 style={{ margin: '0 0 20px 0' }}>Edit Profile</h3>
             <form onSubmit={handleUpdateProfile}>
-              <div style={{ marginBottom: '16px' }}><label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>First Name</label><input className="input-field" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required /></div>
-              <div style={{ marginBottom: '16px' }}><label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Last Name</label><input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required /></div>
-              <div style={{ marginBottom: '16px' }}><label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Email Address</label><input className="input-field" type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required /></div>
-              <div style={{ marginBottom: '24px' }}><label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>New Password (blank to keep current)</label><input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" /></div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}><button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button><button type="submit" className="btn-primary">Save Changes</button></div>
+              <div style={{ marginBottom: '12px' }}><label>First Name</label><input className="input-field" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required /></div>
+              <div style={{ marginBottom: '12px' }}><label>Last Name</label><input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required /></div>
+              <div style={{ marginBottom: '12px' }}><label>Email</label><input className="input-field" value={newEmail} onChange={e => setNewEmail(e.target.value)} required /></div>
+              <div style={{ marginBottom: '24px' }}><label>New Password</label><input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} /></div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Save</button>
+              </div>
             </form>
           </div>
         </div>
@@ -613,130 +396,84 @@ export default function ChurchScheduleApp() {
 
       {/* MODAL: SETTINGS */}
       {showSettings && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div className="card" style={{ maxWidth: '550px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: '#1e3a5f', fontSize: '24px' }}>⚙️ Service Settings</h3>
-            <p style={{ color: '#666', marginBottom: '24px' }}>Configure church services and times</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {Object.keys(serviceSettings).map(serviceKey => (
-                <div key={serviceKey} style={{ padding: '16px', background: '#f9fafb', borderRadius: '12px', border: '1px solid #e5e0d8' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                    <input type="checkbox" checked={serviceSettings[serviceKey].enabled} onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], enabled: e.target.checked}})} />
-                    <strong style={{ color: '#1e3a5f' }}>{serviceSettings[serviceKey].label}</strong>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 20px 0' }}>⚙️ Settings</h3>
+            {Object.keys(serviceSettings).map(k => (
+              <div key={k} style={{ padding: '12px', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px' }}>
+                <label style={{ display: 'flex', gap: '10px', fontWeight: 'bold', marginBottom: '8px' }}>
+                  <input type="checkbox" checked={serviceSettings[k].enabled} onChange={e => setServiceSettings({ ...serviceSettings, [k]: { ...serviceSettings[k], enabled: e.target.checked } })} /> {serviceSettings[k].label}
+                </label>
+                {serviceSettings[k].enabled && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input className="input-field" value={serviceSettings[k].label} onChange={e => setServiceSettings({ ...serviceSettings, [k]: { ...serviceSettings[k], label: e.target.value } })} />
+                    {k !== 'communion' && <input className="input-field" value={serviceSettings[k].time} onChange={e => setServiceSettings({ ...serviceSettings, [k]: { ...serviceSettings[k], time: e.target.value } })} />}
                   </div>
-                  {serviceSettings[serviceKey].enabled && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div><label style={{ fontSize: '12px', color: '#666' }}>Label</label><input className="input-field" value={serviceSettings[serviceKey].label} onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], label: e.target.value}})} /></div>
-                      {serviceKey !== 'communion' && (
-                        <div><label style={{ fontSize: '12px', color: '#666' }}>Time</label><input className="input-field" value={serviceSettings[serviceKey].time} onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], time: e.target.value}})} /></div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}><button className="btn-primary" onClick={() => setShowSettings(false)}>Save Settings</button></div>
+                )}
+              </div>
+            ))}
+            <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowSettings(false)}>Close</button>
           </div>
         </div>
       )}
 
       {/* MODAL: SPEAKER (RESTORED REPEAT RULES) */}
       {showAddSpeaker && editingSpeaker && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div className="card" style={{ maxWidth: '500px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 20px 0', color: '#1e3a5f' }}>{speakers.find(s => s.id === editingSpeaker.id) ? 'Edit' : 'Add'} Speaker</h3>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-              <input className="input-field" placeholder="First Name" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({...editingSpeaker, firstName: e.target.value})} />
-              <input className="input-field" placeholder="Last Name" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({...editingSpeaker, lastName: e.target.value})} />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3>{speakers.find(s => s.id === editingSpeaker.id) ? 'Edit' : 'Add'} Speaker</h3>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <input className="input-field" placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
+              <input className="input-field" placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
             </div>
-            
+            <div style={{ marginBottom: '12px' }}>
+              <label>Priority</label>
+              <select className="input-field" value={editingSpeaker.priority || 0} onChange={e => setEditingSpeaker({ ...editingSpeaker, priority: parseInt(e.target.value) })}>
+                <option value={0}>None</option><option value={1}>Priority 1</option><option value={2}>Priority 2</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Availability</strong><br />
+              <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayMorning: e.target.checked } })} /> Sun Morning</label><br />
+              <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayEvening: e.target.checked } })} /> Sun Evening</label><br />
+              <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, wednesdayEvening: e.target.checked } })} /> Wednesday</label><br />
+              <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, communion: e.target.checked } })} /> Communion</label>
+            </div>
             <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Availability</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, sundayMorning: e.target.checked}})} /> Sun Morning</label>
-                    <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, sundayEvening: e.target.checked}})} /> Sun Evening</label>
-                    <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, wednesdayEvening: e.target.checked}})} /> Wed Evening</label>
-                    <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, communion: e.target.checked}})} /> Communion</label>
+              <strong>Repeat Rules</strong>
+              {(editingSpeaker.repeatRules || []).map((r, i) => (
+                <div key={i} style={{ background: '#f8f6f3', padding: '10px', borderRadius: '8px', marginTop: '8px' }}>
+                  <select className="input-field" value={r.serviceType} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].serviceType = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
+                    <option value="">Select Service...</option><option value="sundayMorning">Sun AM</option><option value="sundayEvening">Sun PM</option><option value="wednesdayEvening">Wed</option>
+                  </select>
+                  <select className="input-field" style={{ marginTop: '4px' }} value={r.pattern} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].pattern = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
+                    <option value="everyOther">Every Other Week</option><option value="nthWeek">Specific Week</option>
+                  </select>
+                  {r.pattern === 'everyOther' ? 
+                    <select className="input-field" style={{ marginTop: '4px' }} value={r.startWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].startWeek = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value="odd">1st, 3rd, 5th</option><option value="even">2nd, 4th</option></select> :
+                    <select className="input-field" style={{ marginTop: '4px' }} value={r.nthWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].nthWeek = parseInt(e.target.value); setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value={1}>1st Week</option><option value={2}>2nd Week</option><option value={3}>3rd Week</option><option value={4}>4th Week</option></select>
+                  }
+                  <button onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: editingSpeaker.repeatRules.filter((_, idx) => idx !== i) })} style={{ width: '100%', marginTop: '4px', color: 'red' }}>Remove Rule</button>
                 </div>
+              ))}
+              <button className="btn-secondary" style={{ width: '100%', marginTop: '8px' }} onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: [...(editingSpeaker.repeatRules || []), { serviceType: '', pattern: 'everyOther', startWeek: 'odd', nthWeek: 1 }] })}>+ Add Rule</button>
             </div>
-
-            <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Repeat Rules</label>
-                {(editingSpeaker.repeatRules || []).map((rule, idx) => (
-                    <div key={idx} style={{ background: '#f3f4f6', padding: '12px', borderRadius: '8px', marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                            <select className="input-field" style={{ padding: '8px' }} value={rule.serviceType} onChange={e => {
-                                const newRules = [...editingSpeaker.repeatRules];
-                                newRules[idx].serviceType = e.target.value;
-                                setEditingSpeaker({...editingSpeaker, repeatRules: newRules});
-                            }}>
-                                <option value="">Select Service...</option>
-                                <option value="sundayMorning">Sunday Morning</option>
-                                <option value="sundayEvening">Sunday Evening</option>
-                                <option value="wednesdayEvening">Wednesday Evening</option>
-                            </select>
-                            <select className="input-field" style={{ padding: '8px' }} value={rule.pattern} onChange={e => {
-                                const newRules = [...editingSpeaker.repeatRules];
-                                newRules[idx].pattern = e.target.value;
-                                setEditingSpeaker({...editingSpeaker, repeatRules: newRules});
-                            }}>
-                                <option value="">Select Pattern...</option>
-                                <option value="everyOther">Every Other Week</option>
-                                <option value="nthWeek">Specific Week</option>
-                            </select>
-                            <button onClick={() => setEditingSpeaker({...editingSpeaker, repeatRules: editingSpeaker.repeatRules.filter((_, i) => i !== idx)})} style={{ background: '#fee2e2', border: 'none', borderRadius: '4px', padding: '0 10px', color: '#dc2626', cursor: 'pointer' }}>×</button>
-                        </div>
-                        {rule.pattern === 'everyOther' && (
-                             <select className="input-field" style={{ padding: '8px' }} value={rule.startWeek} onChange={e => {
-                                const newRules = [...editingSpeaker.repeatRules];
-                                newRules[idx].startWeek = e.target.value;
-                                setEditingSpeaker({...editingSpeaker, repeatRules: newRules});
-                            }}>
-                                <option value="odd">1st, 3rd, 5th weeks</option>
-                                <option value="even">2nd, 4th weeks</option>
-                            </select>
-                        )}
-                        {rule.pattern === 'nthWeek' && (
-                             <select className="input-field" style={{ padding: '8px' }} value={rule.nthWeek} onChange={e => {
-                                const newRules = [...editingSpeaker.repeatRules];
-                                newRules[idx].nthWeek = parseInt(e.target.value);
-                                setEditingSpeaker({...editingSpeaker, repeatRules: newRules});
-                            }}>
-                                <option value={1}>1st Week</option>
-                                <option value={2}>2nd Week</option>
-                                <option value={3}>3rd Week</option>
-                                <option value={4}>4th Week</option>
-                                <option value={5}>5th Week</option>
-                            </select>
-                        )}
-                    </div>
-                ))}
-                <button className="btn-secondary" style={{ width: '100%', padding: '8px' }} onClick={() => setEditingSpeaker({...editingSpeaker, repeatRules: [...(editingSpeaker.repeatRules || []), { serviceType: '', pattern: '', startWeek: 'odd', nthWeek: 1 }]})}>+ Add Repeat Rule</button>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setShowAddSpeaker(false)}>Cancel</button>
-              <button className="btn-primary" onClick={() => {
-                const idx = speakers.findIndex(s => s.id === editingSpeaker.id);
-                if (idx >= 0) { const ns = [...speakers]; ns[idx] = editingSpeaker; setSpeakers(ns); }
-                else { setSpeakers([...speakers, editingSpeaker]); }
-                setShowAddSpeaker(false);
-              }}>Save Speaker</button>
+              <button className="btn-primary" onClick={() => { if (speakers.find(s => s.id === editingSpeaker.id)) setSpeakers(speakers.map(s => s.id === editingSpeaker.id ? editingSpeaker : s)); else setSpeakers([...speakers, editingSpeaker]); setShowAddSpeaker(false); }}>Save</button>
             </div>
           </div>
         </div>
       )}
 
       {assigningSlot && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
-            <h3 style={{ margin: '0 0 20px 0', color: '#1e3a5f' }}>Assign Speaker</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {getAvailableSpeakersForSlot(assigningSlot.date, assigningSlot.serviceType).map(s => (
-                <button key={s.id} className="btn-secondary" style={{ textAlign: 'left' }} onClick={() => assignSpeakerToSlot(s.id)}>{s.firstName} {s.lastName}</button>
-              ))}
-              <button className="btn-secondary" style={{ marginTop: '12px' }} onClick={() => setAssigningSlot(null)}>Close</button>
-            </div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
+            <h3>Assign Speaker</h3>
+            {getAvailableSpeakersForSlot(assigningSlot.date, assigningSlot.serviceType).map(s => (
+              <button key={s.id} className="btn-secondary" style={{ width: '100%', marginBottom: '8px' }} onClick={() => assignSpeakerToSlot(s.id)}>{s.firstName} {s.lastName}</button>
+            ))}
+            <button className="btn-secondary" style={{ width: '100%', marginTop: '12px' }} onClick={() => setAssigningSlot(null)}>Cancel</button>
           </div>
         </div>
       )}
