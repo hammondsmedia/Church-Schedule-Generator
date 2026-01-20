@@ -83,6 +83,15 @@ export default function ChurchScheduleApp() {
     loadFirebase();
   }, []);
 
+  // RESTORED: Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showProfile && !e.target.closest('[data-profile-menu]')) setShowProfile(false);
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showProfile]);
+
   const loadUserData = async (uid) => {
     if (!db.current) return;
     setDataLoading(true);
@@ -118,6 +127,7 @@ export default function ChurchScheduleApp() {
     }
   }, [speakers, schedule, serviceSettings, churchName, user, firebaseReady, dataLoading]);
 
+  // RESTORED: Handle Profile Update including Church Name
   const handleUpdateProfile = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
@@ -125,7 +135,16 @@ export default function ChurchScheduleApp() {
       const full = `${userFirstName} ${userLastName}`.trim();
       if (newEmail !== u.email) await u.updateEmail(newEmail);
       if (newPassword) await u.updatePassword(newPassword);
-      await db.current.collection('users').doc(u.uid).set({ firstName: userFirstName, lastName: userLastName, name: full, email: newEmail }, { merge: true });
+      
+      // Save personal info AND congregation name
+      await db.current.collection('users').doc(u.uid).set({ 
+        firstName: userFirstName, 
+        lastName: userLastName, 
+        name: full, 
+        email: newEmail,
+        churchName: churchName 
+      }, { merge: true });
+      
       await u.updateProfile({ displayName: full });
       alert('Profile updated!'); setShowEditProfile(false); setNewPassword('');
     } catch (err) { setAuthError(err.message); }
@@ -147,7 +166,16 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
-  const handleLogout = async () => { await auth.current.signOut(); setSpeakers([]); setSchedule({}); };
+  // RESTORED: Comprehensive Logout
+  const handleLogout = async () => { 
+    await auth.current.signOut(); 
+    setSpeakers([]); 
+    setSchedule({}); 
+    setChurchName(''); 
+    setUserFirstName('');
+    setUserLastName('');
+    setShowProfile(false);
+  };
 
   const getMonthDays = (date) => {
     const y = date.getFullYear(), m = date.getMonth();
@@ -224,7 +252,6 @@ export default function ChurchScheduleApp() {
     setSchedule(newSchedule); setView('calendar');
   };
 
-  // RESTORED: Clear Month Function
   const clearMonth = () => {
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
@@ -235,7 +262,6 @@ export default function ChurchScheduleApp() {
     setSchedule(newSchedule);
   };
 
-  // RESTORED: Export to PDF Function
   const exportToPDF = () => {
     const printWindow = window.open('', '_blank');
     const monthName = selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -286,7 +312,7 @@ export default function ChurchScheduleApp() {
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <style>{`* { box-sizing: border-box; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; }`}</style>
-      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px' }}>
+      <div style={{ background: 'white', padding: '48px 40px', borderRadius: '20px', width: '100%', maxWidth: '400px' }}>
         <h2 style={{ textAlign: 'center', color: '#1e3a5f' }}>✝ Church Schedule</h2>
         <form onSubmit={authView === 'login' ? handleLogin : handleRegister}>
           {authView === 'register' && <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
@@ -309,17 +335,20 @@ export default function ChurchScheduleApp() {
         .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px; overflow-x: hidden; }
         .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
+        
         .service-badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin: 0 8px 4px 0; display: inline-block; }
         .badge-priority { background: #fee2e2; color: #dc2626; }
         .badge-morning { background: #dbeafe; color: #1e40af; }
         .badge-evening { background: #ede9fe; color: #5b21b6; }
         .badge-wednesday { background: #d1fae5; color: #065f46; }
         .badge-communion { background: #fce7f3; color: #be185d; }
+        
         .calendar-bar { padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: grab; display: block; width: 100%; text-align: left; border: none; }
         .bar-empty { background: #e5e7eb; color: #666; cursor: pointer; }
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
+      {/* HEADER */}
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px' }}>
@@ -328,14 +357,23 @@ export default function ChurchScheduleApp() {
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowSettings(true)}>⚙️ Settings</button>
-            <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowProfile(!showProfile)}>👤 {user.displayName}</button>
-            {showProfile && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '220px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
-                <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}><strong>{user.displayName}</strong></div>
-                <button onClick={() => { setShowEditProfile(true); setShowProfile(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer' }}>Edit Profile</button>
-                <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626' }}>Sign Out</button>
-              </div>
-            )}
+            
+            {/* RESTORED: Profile Menu with Click-Outside Support */}
+            <div style={{ position: 'relative' }} data-profile-menu>
+              <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowProfile(!showProfile)}>
+                👤 {user.displayName || 'Account'}
+              </button>
+              {showProfile && (
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '220px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
+                  <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
+                    <div style={{ fontWeight: '600' }}>{user.displayName || 'User'}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>{user.email}</div>
+                  </div>
+                  <button onClick={() => { setShowEditProfile(true); setShowProfile(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>Edit Profile & Congregation</button>
+                  <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '14px' }}>Sign Out</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -353,11 +391,10 @@ export default function ChurchScheduleApp() {
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
           
-          {/* RESTORED: Clear and PDF Buttons in Responsive Header */}
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {view === 'calendar' && (
               <>
-                <button className="btn-secondary" style={{ color: '#991b1b', borderColor: '#991b1b' }} onClick={clearMonth}>🗑️ Clear Month</button>
+                <button className="btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={clearMonth}>🗑️ Clear Month</button>
                 <button className="btn-secondary" onClick={exportToPDF}>📄 Export PDF</button>
               </>
             )}
@@ -371,15 +408,26 @@ export default function ChurchScheduleApp() {
               <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <h3 style={{ margin: '0 0 8px 0', color: '#1e3a5f' }}>{s.firstName} {s.lastName}</h3>
-                  {s.priority > 0 && <span className="service-badge badge-priority">★ Priority {s.priority}</span>}
-                  {s.availability.sundayMorning && <span className="service-badge badge-morning">Sunday Morning</span>}
-                  {s.availability.sundayEvening && <span className="service-badge badge-evening">Sunday Evening</span>}
-                  {s.availability.wednesdayEvening && <span className="service-badge badge-wednesday">Wednesday Evening</span>}
-                  {s.availability.communion && <span className="service-badge badge-communion">Communion</span>}
+                  <div style={{ marginBottom: '8px' }}>
+                    {s.priority > 0 && <span className="service-badge badge-priority">★ Priority {s.priority}</span>}
+                    {s.availability.sundayMorning && <span className="service-badge badge-morning">Sunday Morning</span>}
+                    {s.availability.sundayEvening && <span className="service-badge badge-evening">Sunday Evening</span>}
+                    {s.availability.wednesdayEvening && <span className="service-badge badge-wednesday">Wednesday Evening</span>}
+                    {s.availability.communion && <span className="service-badge badge-communion">Communion</span>}
+                  </div>
+                  {s.repeatRules?.length > 0 && (
+                    <div style={{ fontSize: '13px', color: '#666' }}>
+                      <strong>Repeat Rules:</strong> {s.repeatRules.map((r, i) => (
+                        <span key={i} style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', marginRight: '4px' }}>
+                            {r.serviceType} ({r.pattern})
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className="btn-secondary" style={{ padding: '8px 12px' }} onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
-                  <button style={{ padding: '8px 12px', background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '8px', cursor: 'pointer' }} onClick={() => setSpeakers(speakers.filter(sp => sp.id !== s.id))}>Remove</button>
+                  <button style={{ padding: '8px 12px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer' }} onClick={() => setSpeakers(speakers.filter(sp => sp.id !== s.id))}>Remove</button>
                 </div>
               </div>
             ))}
@@ -418,19 +466,35 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* MODAL: PROFILE */}
+      {/* MODAL: PROFILE (RESTORED CHURCH NAME EDITING) */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>Edit Profile</h3>
+          <div className="card" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 20px 0' }}>Edit Profile & Congregation</h3>
             <form onSubmit={handleUpdateProfile}>
-              <div style={{ marginBottom: '12px' }}><label>First Name</label><input className="input-field" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required /></div>
-              <div style={{ marginBottom: '12px' }}><label>Last Name</label><input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required /></div>
-              <div style={{ marginBottom: '12px' }}><label>Email</label><input className="input-field" value={newEmail} onChange={e => setNewEmail(e.target.value)} required /></div>
-              <div style={{ marginBottom: '24px' }}><label>New Password</label><input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} /></div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>Congregation/Church Name</label>
+                <input className="input-field" value={churchName} onChange={e => setChurchName(e.target.value)} required />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>First Name</label>
+                <input className="input-field" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>Last Name</label>
+                <input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>Email Address</label>
+                <input className="input-field" type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required />
+              </div>
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>New Password (blank to keep current)</label>
+                <input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" />
+              </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Save</button>
+                <button type="submit" className="btn-primary">Save Changes</button>
               </div>
             </form>
           </div>
@@ -441,7 +505,7 @@ export default function ChurchScheduleApp() {
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>⚙️ Settings</h3>
+            <h3 style={{ margin: '0 0 20px 0' }}>⚙️ Service Settings</h3>
             {Object.keys(serviceSettings).map(k => (
               <div key={k} style={{ padding: '12px', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px' }}>
                 <label style={{ display: 'flex', gap: '10px', fontWeight: 'bold', marginBottom: '8px' }}>
@@ -466,44 +530,46 @@ export default function ChurchScheduleApp() {
           <div className="card" style={{ width: '100%', maxWidth: '450px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3>{speakers.find(s => s.id === editingSpeaker.id) ? 'Edit' : 'Add'} Speaker</h3>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-              <input className="input-field" placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
-              <input className="input-field" placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
+              <input className="input-field" placeholder="First Name" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
+              <input className="input-field" placeholder="Last Name" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
             </div>
             <div style={{ marginBottom: '12px' }}>
-              <label>Priority</label>
+              <label style={{ fontWeight: 'bold' }}>Priority</label>
               <select className="input-field" value={editingSpeaker.priority || 0} onChange={e => setEditingSpeaker({ ...editingSpeaker, priority: parseInt(e.target.value) })}>
-                <option value={0}>None</option><option value={1}>Priority 1</option><option value={2}>Priority 2</option>
+                <option value={0}>None (Rotated)</option><option value={1}>Priority 1 (High)</option><option value={2}>Priority 2 (Medium)</option>
               </select>
             </div>
             <div style={{ marginBottom: '12px' }}>
-              <strong>Availability</strong><br />
-              <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayMorning: e.target.checked } })} /> Sun Morning</label><br />
-              <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayEvening: e.target.checked } })} /> Sun Evening</label><br />
-              <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, wednesdayEvening: e.target.checked } })} /> Wednesday</label><br />
-              <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, communion: e.target.checked } })} /> Communion</label>
+              <strong style={{ display: 'block', marginBottom: '8px' }}>Service Availability</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayMorning: e.target.checked } })} /> Sun Morning</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayEvening: e.target.checked } })} /> Sun Evening</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, wednesdayEvening: e.target.checked } })} /> Wednesday</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, communion: e.target.checked } })} /> Communion</label>
+              </div>
             </div>
             <div style={{ marginBottom: '16px' }}>
-              <strong>Repeat Rules</strong>
+              <strong style={{ display: 'block', marginBottom: '8px' }}>Repeat Speaking Rules</strong>
               {(editingSpeaker.repeatRules || []).map((r, i) => (
-                <div key={i} style={{ background: '#f8f6f3', padding: '10px', borderRadius: '8px', marginTop: '8px' }}>
+                <div key={i} style={{ background: '#f8f6f3', padding: '10px', borderRadius: '8px', marginTop: '8px', border: '1px solid #eee' }}>
                   <select className="input-field" value={r.serviceType} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].serviceType = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
                     <option value="">Select Service...</option><option value="sundayMorning">Sun AM</option><option value="sundayEvening">Sun PM</option><option value="wednesdayEvening">Wed</option>
                   </select>
                   <select className="input-field" style={{ marginTop: '4px' }} value={r.pattern} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].pattern = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
-                    <option value="everyOther">Every Other Week</option><option value="nthWeek">Specific Week</option>
+                    <option value="everyOther">Every Other Week</option><option value="nthWeek">Specific Week of Month</option>
                   </select>
                   {r.pattern === 'everyOther' ? 
-                    <select className="input-field" style={{ marginTop: '4px' }} value={r.startWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].startWeek = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value="odd">1st, 3rd, 5th</option><option value="even">2nd, 4th</option></select> :
-                    <select className="input-field" style={{ marginTop: '4px' }} value={r.nthWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].nthWeek = parseInt(e.target.value); setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value={1}>1st Week</option><option value={2}>2nd Week</option><option value={3}>3rd Week</option><option value={4}>4th Week</option></select>
+                    <select className="input-field" style={{ marginTop: '4px' }} value={r.startWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].startWeek = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value="odd">1st, 3rd, 5th weeks</option><option value="even">2nd, 4th weeks</option></select> :
+                    <select className="input-field" style={{ marginTop: '4px' }} value={r.nthWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].nthWeek = parseInt(e.target.value); setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value={1}>1st Week</option><option value={2}>2nd Week</option><option value={3}>3rd Week</option><option value={4}>4th Week</option><option value={5}>5th Week</option></select>
                   }
-                  <button onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: editingSpeaker.repeatRules.filter((_, idx) => idx !== i) })} style={{ width: '100%', marginTop: '4px', color: 'red' }}>Remove Rule</button>
+                  <button onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: editingSpeaker.repeatRules.filter((_, idx) => idx !== i) })} style={{ width: '100%', marginTop: '4px', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>Remove Rule</button>
                 </div>
               ))}
-              <button className="btn-secondary" style={{ width: '100%', marginTop: '8px' }} onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: [...(editingSpeaker.repeatRules || []), { serviceType: '', pattern: 'everyOther', startWeek: 'odd', nthWeek: 1 }] })}>+ Add Rule</button>
+              <button className="btn-secondary" style={{ width: '100%', marginTop: '8px', padding: '8px', fontSize: '13px' }} onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: [...(editingSpeaker.repeatRules || []), { serviceType: '', pattern: 'everyOther', startWeek: 'odd', nthWeek: 1 }] })}>+ Add Repeat Rule</button>
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setShowAddSpeaker(false)}>Cancel</button>
-              <button className="btn-primary" onClick={() => { if (speakers.find(s => s.id === editingSpeaker.id)) setSpeakers(speakers.map(s => s.id === editingSpeaker.id ? editingSpeaker : s)); else setSpeakers([...speakers, editingSpeaker]); setShowAddSpeaker(false); }}>Save</button>
+              <button className="btn-primary" onClick={() => { if (speakers.find(s => s.id === editingSpeaker.id)) setSpeakers(speakers.map(s => s.id === editingSpeaker.id ? editingSpeaker : s)); else setSpeakers([...speakers, editingSpeaker]); setShowAddSpeaker(false); }}>Save Speaker</button>
             </div>
           </div>
         </div>
@@ -514,7 +580,7 @@ export default function ChurchScheduleApp() {
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
             <h3>Assign Speaker</h3>
             {getAvailableSpeakersForSlot(assigningSlot.date, assigningSlot.serviceType).map(s => (
-              <button key={s.id} className="btn-secondary" style={{ width: '100%', marginBottom: '8px' }} onClick={() => assignSpeakerToSlot(s.id)}>{s.firstName} {s.lastName}</button>
+              <button key={s.id} className="btn-secondary" style={{ width: '100%', marginBottom: '8px', textAlign: 'left' }} onClick={() => assignSpeakerToSlot(s.id)}>{s.firstName} {s.lastName}</button>
             ))}
             <button className="btn-secondary" style={{ width: '100%', marginTop: '12px' }} onClick={() => setAssigningSlot(null)}>Cancel</button>
           </div>
