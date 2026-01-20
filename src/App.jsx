@@ -292,7 +292,7 @@ export default function ChurchScheduleApp() {
 
   const generateSchedule = () => {
     const days = getMonthDays(selectedMonth);
-    const newSchedule = { ...schedule }; // Persistent logic
+    const newSchedule = { ...schedule }; // Persistent month fix
     const seed = selectedMonth.getFullYear() * 12 + selectedMonth.getMonth();
     const speakerCounts = {};
     speakers.forEach(s => { speakerCounts[s.id] = { sundayMorning: 0, sundayEvening: 0, wednesdayEvening: 0, communion: 0, total: 0 }; });
@@ -323,6 +323,36 @@ export default function ChurchScheduleApp() {
       return [...priority1, ...priority2, ...shuffledDefault];
     };
 
+    // First pass: Assign repeat rules
+    const assignRepeatRules = (serviceType, slotList) => {
+      speakers.forEach(speaker => {
+        const rules = (speaker.repeatRules || []).filter(r => r.serviceType === serviceType);
+        rules.forEach(rule => {
+          slotList.forEach(slot => {
+            if (!isSpeakerAvailable(speaker, slot.date, serviceType)) return;
+            const slotKey = `${slot.dateKey}-${serviceType}`;
+            if (newSchedule[slotKey]) return;
+            
+            let shouldAssign = false;
+            if (rule.pattern === 'everyOther') {
+              shouldAssign = (rule.startWeek === 'odd') ? (slot.weekOfMonth % 2 !== 0) : (slot.weekOfMonth % 2 === 0);
+            } else if (rule.pattern === 'nthWeek') {
+              shouldAssign = slot.weekOfMonth === rule.nthWeek;
+            }
+            
+            if (shouldAssign) {
+              newSchedule[slotKey] = { speakerId: speaker.id, date: slot.dateKey, serviceType };
+              speakerCounts[speaker.id][serviceType]++;
+            }
+          });
+        });
+      });
+    };
+
+    assignRepeatRules('sundayMorning', slots.sundayMorning);
+    assignRepeatRules('sundayEvening', slots.sundayEvening);
+    assignRepeatRules('wednesdayEvening', slots.wednesdayEvening);
+
     const fillSlots = (serviceType, slotList, excludeFromSlotKey = null) => {
       slotList.forEach(slot => {
         const slotKey = `${slot.dateKey}-${serviceType}`;
@@ -351,11 +381,6 @@ export default function ChurchScheduleApp() {
     return speaker ? `${speaker.firstName} ${speaker.lastName}` : '';
   };
 
-  const getAvailableSpeakersForSlot = (date, serviceType) => {
-    const dateObj = new Date(date + 'T12:00:00');
-    return speakers.filter(s => isSpeakerAvailable(s, dateObj, serviceType));
-  };
-
   const assignSpeakerToSlot = (speakerId) => {
     if (!assigningSlot) return;
     const newSchedule = { ...schedule };
@@ -364,35 +389,15 @@ export default function ChurchScheduleApp() {
     setAssigningSlot(null);
   };
 
-  // Drag and Drop Logic
-  const handleDragStart = (slotKey) => {
-    setDraggedSlot(slotKey);
-  };
-
+  const handleDragStart = (slotKey) => setDraggedSlot(slotKey);
   const handleDrop = (targetSlotKey) => {
-    if (!draggedSlot || draggedSlot === targetSlotKey) {
-      setDraggedSlot(null);
-      return;
-    }
+    if (!draggedSlot || draggedSlot === targetSlotKey) { setDraggedSlot(null); return; }
     const newSchedule = { ...schedule };
     const draggedData = newSchedule[draggedSlot];
     const targetData = newSchedule[targetSlotKey];
-    if (draggedData) {
-      newSchedule[targetSlotKey] = { 
-        ...draggedData, 
-        date: targetSlotKey.split('-')[0], 
-        serviceType: targetSlotKey.split('-').slice(1).join('-') 
-      };
-    }
-    if (targetData) {
-      newSchedule[draggedSlot] = { 
-        ...targetData, 
-        date: draggedSlot.split('-')[0], 
-        serviceType: draggedSlot.split('-').slice(1).join('-') 
-      };
-    } else {
-      delete newSchedule[draggedSlot];
-    }
+    if (draggedData) { newSchedule[targetSlotKey] = { ...draggedData, date: targetSlotKey.split('-')[0], serviceType: targetSlotKey.split('-').slice(1).join('-') }; }
+    if (targetData) { newSchedule[draggedSlot] = { ...targetData, date: draggedSlot.split('-')[0], serviceType: draggedSlot.split('-').slice(1).join('-') }; }
+    else { delete newSchedule[draggedSlot]; }
     setSchedule(newSchedule);
     setDraggedSlot(null);
   };
@@ -430,7 +435,6 @@ export default function ChurchScheduleApp() {
         .nav-tab { padding: 12px 24px; border: none; background: transparent; font-weight: 600; font-size: 15px; color: #666; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
         
-        /* COLOR LABEL PALETTE */
         .service-badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-right: 8px; margin-bottom: 4px; display: inline-block; }
         .badge-priority { background: #fee2e2; color: #dc2626; }
         .badge-morning { background: #dbeafe; color: #1e40af; }
@@ -438,13 +442,10 @@ export default function ChurchScheduleApp() {
         .badge-wednesday { background: #d1fae5; color: #065f46; }
         .badge-communion { background: #fce7f3; color: #be185d; }
         
-        /* CALENDAR BARS */
         .calendar-bar { padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: grab; display: block; width: 100%; text-align: left; border: none; transition: transform 0.1s ease; }
-        .calendar-bar:active { cursor: grabbing; }
         .bar-empty { background: #e5e7eb; color: #666; cursor: pointer; }
         
-        .input-field { width: 100%; padding: 12px 16px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; transition: border-color 0.2s; }
-        .input-field:focus { outline: none; border-color: #1e3a5f; }
+        .input-field { width: 100%; padding: 12px 16px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
@@ -474,7 +475,7 @@ export default function ChurchScheduleApp() {
           <div style={{ padding: '24px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '24px' }}>Manage Speakers ({speakers.length})</h2>
-              <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: { sundayMorning: false, sundayEvening: false, wednesdayEvening: false, communion: false }, blockOffDates: [], priority: 0 }); setShowAddSpeaker(true); }}>+ Add Speaker</button>
+              <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: { sundayMorning: false, sundayEvening: false, wednesdayEvening: false, communion: false }, blockOffDates: [], repeatRules: [], priority: 0 }); setShowAddSpeaker(true); }}>+ Add Speaker</button>
             </div>
             {speakers.map(s => (
               <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
@@ -487,6 +488,15 @@ export default function ChurchScheduleApp() {
                     {s.availability.wednesdayEvening && <span className="service-badge badge-wednesday">Wednesday Evening</span>}
                     {s.availability.communion && <span className="service-badge badge-communion">Communion</span>}
                   </div>
+                  {s.repeatRules?.length > 0 && (
+                    <div style={{ fontSize: '13px', color: '#666' }}>
+                      <strong>Repeat Rules:</strong> {s.repeatRules.map((r, i) => (
+                        <span key={i} style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', marginRight: '4px' }}>
+                            {r.serviceType} ({r.pattern})
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className="btn-secondary" style={{ padding: '8px 16px' }} onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
@@ -517,7 +527,7 @@ export default function ChurchScheduleApp() {
                   const se = schedule[`${dateKey}-sundayEvening`];
                   return (
                     <div key={dateKey} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
-                      <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e3a5f' }}>{d.date.getDate()}</div>
+                      <div style={{ fontWeight: '600', marginBottom: '8px' }}>{d.date.getDate()}</div>
                       {serviceSettings.sundayMorning.enabled && (
                         <button 
                           className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} 
@@ -565,7 +575,7 @@ export default function ChurchScheduleApp() {
                   const we = schedule[`${dateKey}-wednesdayEvening`];
                   return (
                     <div key={dateKey} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
-                      <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e3a5f' }}>{d.date.getDate()}</div>
+                      <div style={{ fontWeight: '600', marginBottom: '8px' }}>{d.date.getDate()}</div>
                       <button 
                         className={`calendar-bar ${we ? 'badge-wednesday' : 'bar-empty'}`} 
                         draggable={!!we}
@@ -591,26 +601,11 @@ export default function ChurchScheduleApp() {
           <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
             <h3 style={{ margin: '0 0 20px 0', color: '#1e3a5f', fontSize: '22px' }}>Edit Profile</h3>
             <form onSubmit={handleUpdateProfile}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>First Name</label>
-                <input className="input-field" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required />
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Last Name</label>
-                <input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required />
-              </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Email Address</label>
-                <input className="input-field" type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required />
-              </div>
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>New Password (blank to keep current)</label>
-                <input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" />
-              </div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Save Changes</button>
-              </div>
+              <div style={{ marginBottom: '16px' }}><label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>First Name</label><input className="input-field" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required /></div>
+              <div style={{ marginBottom: '16px' }}><label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Last Name</label><input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required /></div>
+              <div style={{ marginBottom: '16px' }}><label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Email Address</label><input className="input-field" type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required /></div>
+              <div style={{ marginBottom: '24px' }}><label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>New Password (blank to keep current)</label><input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" /></div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}><button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button><button type="submit" className="btn-primary">Save Changes</button></div>
             </form>
           </div>
         </div>
@@ -626,60 +621,99 @@ export default function ChurchScheduleApp() {
               {Object.keys(serviceSettings).map(serviceKey => (
                 <div key={serviceKey} style={{ padding: '16px', background: '#f9fafb', borderRadius: '12px', border: '1px solid #e5e0d8' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={serviceSettings[serviceKey].enabled} 
-                      onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], enabled: e.target.checked}})} 
-                    />
+                    <input type="checkbox" checked={serviceSettings[serviceKey].enabled} onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], enabled: e.target.checked}})} />
                     <strong style={{ color: '#1e3a5f' }}>{serviceSettings[serviceKey].label}</strong>
                   </div>
                   {serviceSettings[serviceKey].enabled && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div>
-                        <label style={{ fontSize: '12px', color: '#666' }}>Label</label>
-                        <input 
-                          className="input-field" 
-                          value={serviceSettings[serviceKey].label} 
-                          onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], label: e.target.value}})} 
-                        />
-                      </div>
+                      <div><label style={{ fontSize: '12px', color: '#666' }}>Label</label><input className="input-field" value={serviceSettings[serviceKey].label} onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], label: e.target.value}})} /></div>
                       {serviceKey !== 'communion' && (
-                        <div>
-                          <label style={{ fontSize: '12px', color: '#666' }}>Time</label>
-                          <input 
-                            className="input-field" 
-                            value={serviceSettings[serviceKey].time} 
-                            onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], time: e.target.value}})} 
-                          />
-                        </div>
+                        <div><label style={{ fontSize: '12px', color: '#666' }}>Time</label><input className="input-field" value={serviceSettings[serviceKey].time} onChange={e => setServiceSettings({...serviceSettings, [serviceKey]: {...serviceSettings[serviceKey], time: e.target.value}})} /></div>
                       )}
                     </div>
                   )}
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-              <button className="btn-primary" onClick={() => setShowSettings(false)}>Save Settings</button>
-            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}><button className="btn-primary" onClick={() => setShowSettings(false)}>Save Settings</button></div>
           </div>
         </div>
       )}
 
-      {/* MODAL: SPEAKER */}
+      {/* MODAL: SPEAKER (RESTORED REPEAT RULES) */}
       {showAddSpeaker && editingSpeaker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div className="card" style={{ maxWidth: '450px', width: '100%' }}>
+          <div className="card" style={{ maxWidth: '500px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 20px 0', color: '#1e3a5f' }}>{speakers.find(s => s.id === editingSpeaker.id) ? 'Edit' : 'Add'} Speaker</h3>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               <input className="input-field" placeholder="First Name" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({...editingSpeaker, firstName: e.target.value})} />
               <input className="input-field" placeholder="Last Name" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({...editingSpeaker, lastName: e.target.value})} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-               <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, sundayMorning: e.target.checked}})} /> Sun Morning</label>
-               <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, sundayEvening: e.target.checked}})} /> Sun Evening</label>
-               <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, wednesdayEvening: e.target.checked}})} /> Wed Evening</label>
-               <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, communion: e.target.checked}})} /> Communion</label>
+            
+            <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Availability</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, sundayMorning: e.target.checked}})} /> Sun Morning</label>
+                    <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, sundayEvening: e.target.checked}})} /> Sun Evening</label>
+                    <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, wednesdayEvening: e.target.checked}})} /> Wed Evening</label>
+                    <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({...editingSpeaker, availability: {...editingSpeaker.availability, communion: e.target.checked}})} /> Communion</label>
+                </div>
             </div>
+
+            <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Repeat Rules</label>
+                {(editingSpeaker.repeatRules || []).map((rule, idx) => (
+                    <div key={idx} style={{ background: '#f3f4f6', padding: '12px', borderRadius: '8px', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                            <select className="input-field" style={{ padding: '8px' }} value={rule.serviceType} onChange={e => {
+                                const newRules = [...editingSpeaker.repeatRules];
+                                newRules[idx].serviceType = e.target.value;
+                                setEditingSpeaker({...editingSpeaker, repeatRules: newRules});
+                            }}>
+                                <option value="">Select Service...</option>
+                                <option value="sundayMorning">Sunday Morning</option>
+                                <option value="sundayEvening">Sunday Evening</option>
+                                <option value="wednesdayEvening">Wednesday Evening</option>
+                            </select>
+                            <select className="input-field" style={{ padding: '8px' }} value={rule.pattern} onChange={e => {
+                                const newRules = [...editingSpeaker.repeatRules];
+                                newRules[idx].pattern = e.target.value;
+                                setEditingSpeaker({...editingSpeaker, repeatRules: newRules});
+                            }}>
+                                <option value="">Select Pattern...</option>
+                                <option value="everyOther">Every Other Week</option>
+                                <option value="nthWeek">Specific Week</option>
+                            </select>
+                            <button onClick={() => setEditingSpeaker({...editingSpeaker, repeatRules: editingSpeaker.repeatRules.filter((_, i) => i !== idx)})} style={{ background: '#fee2e2', border: 'none', borderRadius: '4px', padding: '0 10px', color: '#dc2626', cursor: 'pointer' }}>×</button>
+                        </div>
+                        {rule.pattern === 'everyOther' && (
+                             <select className="input-field" style={{ padding: '8px' }} value={rule.startWeek} onChange={e => {
+                                const newRules = [...editingSpeaker.repeatRules];
+                                newRules[idx].startWeek = e.target.value;
+                                setEditingSpeaker({...editingSpeaker, repeatRules: newRules});
+                            }}>
+                                <option value="odd">1st, 3rd, 5th weeks</option>
+                                <option value="even">2nd, 4th weeks</option>
+                            </select>
+                        )}
+                        {rule.pattern === 'nthWeek' && (
+                             <select className="input-field" style={{ padding: '8px' }} value={rule.nthWeek} onChange={e => {
+                                const newRules = [...editingSpeaker.repeatRules];
+                                newRules[idx].nthWeek = parseInt(e.target.value);
+                                setEditingSpeaker({...editingSpeaker, repeatRules: newRules});
+                            }}>
+                                <option value={1}>1st Week</option>
+                                <option value={2}>2nd Week</option>
+                                <option value={3}>3rd Week</option>
+                                <option value={4}>4th Week</option>
+                                <option value={5}>5th Week</option>
+                            </select>
+                        )}
+                    </div>
+                ))}
+                <button className="btn-secondary" style={{ width: '100%', padding: '8px' }} onClick={() => setEditingSpeaker({...editingSpeaker, repeatRules: [...(editingSpeaker.repeatRules || []), { serviceType: '', pattern: '', startWeek: 'odd', nthWeek: 1 }]})}>+ Add Repeat Rule</button>
+            </div>
+
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setShowAddSpeaker(false)}>Cancel</button>
               <button className="btn-primary" onClick={() => {
@@ -687,13 +721,12 @@ export default function ChurchScheduleApp() {
                 if (idx >= 0) { const ns = [...speakers]; ns[idx] = editingSpeaker; setSpeakers(ns); }
                 else { setSpeakers([...speakers, editingSpeaker]); }
                 setShowAddSpeaker(false);
-              }}>Save</button>
+              }}>Save Speaker</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: ASSIGN */}
       {assigningSlot && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
           <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
