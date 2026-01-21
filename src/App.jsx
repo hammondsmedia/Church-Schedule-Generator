@@ -26,8 +26,11 @@ export default function ChurchScheduleApp() {
   const [churchName, setChurchName] = useState('');
   const [dataLoading, setDataLoading] = useState(false);
   
+  // Organization and Roles
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null); 
+  const [members, setMembers] = useState([]); // New: Track organization members
+  const [inviteEmail, setInviteEmail] = useState(''); // New: Handle invitation input
 
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
@@ -89,6 +92,16 @@ export default function ChurchScheduleApp() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showProfile]);
 
+  // New: Fetch all users belonging to the same Org
+  const fetchMembers = async (targetOrgId) => {
+    if (!db.current || !targetOrgId) return;
+    try {
+      const snapshot = await db.current.collection('users').where('orgId', '==', targetOrgId).get();
+      const memberList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMembers(memberList);
+    } catch (err) { console.error('Error fetching members', err); }
+  };
+
   const loadUserData = async (uid) => {
     if (!db.current) return;
     setDataLoading(true);
@@ -102,7 +115,9 @@ export default function ChurchScheduleApp() {
         setUserFirstName(userData.firstName || '');
         setUserLastName(userData.lastName || '');
         setNewEmail(auth.current.currentUser?.email || '');
+
         if (userOrgId) {
+          fetchMembers(userOrgId); // Fetch members whenever org data loads
           const orgDoc = await db.current.collection('organizations').doc(userOrgId).get();
           if (orgDoc.exists) {
             const orgData = orgDoc.data();
@@ -120,7 +135,9 @@ export default function ChurchScheduleApp() {
   const saveOrgData = async () => {
     if (!db.current || !orgId || dataLoading || !['owner', 'admin'].includes(userRole)) return;
     try {
-      await db.current.collection('organizations').doc(orgId).set({ speakers, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() }, { merge: true });
+      await db.current.collection('organizations').doc(orgId).set({
+        speakers, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString()
+      }, { merge: true });
     } catch (err) { console.error('Save failed', err); }
   };
 
@@ -135,7 +152,7 @@ export default function ChurchScheduleApp() {
     e.preventDefault(); setAuthError('');
     try {
       const u = auth.current.currentUser;
-      const full = `${userFirstName} ${userLastName}`.trim();
+      const full = (userFirstName + ' ' + userLastName).trim();
       if (newEmail !== u.email) await u.updateEmail(newEmail);
       if (newPassword) await u.updatePassword(newPassword);
       await db.current.collection('users').doc(u.uid).set({ firstName: userFirstName, lastName: userLastName, name: full, email: newEmail }, { merge: true });
@@ -145,30 +162,20 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
-  // NEW: Handle Account Deletion
   const handleDeleteAccount = async () => {
     const confirmMessage = userRole === 'owner' 
-      ? "WARNING: You are the owner of this organization. Deleting your account will leave the church schedule without an owner. Are you sure you want to proceed?"
-      : "Are you sure you want to permanently delete your account? This action cannot be undone.";
-
+      ? "WARNING: You are the owner. Deleting your account will leave the church schedule without an owner. Proceed?"
+      : "Permanently delete your account? This cannot be undone.";
     if (!window.confirm(confirmMessage)) return;
-
     try {
       const u = auth.current.currentUser;
-      // 1. Remove user document from Firestore
       await db.current.collection('users').doc(u.uid).delete();
-      
-      // 2. Delete the user from Firebase Auth
       await u.delete();
-      
-      alert('Your account has been deleted.');
+      alert('Account deleted.');
       handleLogout();
     } catch (err) {
-      if (err.code === 'auth/requires-recent-login') {
-        alert('For security, please sign out and sign back in before deleting your account.');
-      } else {
-        alert('Error deleting account: ' + err.message);
-      }
+      if (err.code === 'auth/requires-recent-login') alert('Please sign out and back in before deleting.');
+      else alert('Error: ' + err.message);
     }
   };
 
@@ -191,7 +198,9 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
-  const handleLogout = async () => { await auth.current.signOut(); setSpeakers([]); setSchedule({}); setChurchName(''); setOrgId(null); setUserRole(null); setShowProfile(false); };
+  const handleLogout = async () => { 
+    await auth.current.signOut(); setSpeakers([]); setSchedule({}); setChurchName(''); setOrgId(null); setUserRole(null); setShowProfile(false); 
+  };
 
   const getMonthDays = (date) => {
     const y = date.getFullYear(), m = date.getMonth();
@@ -232,8 +241,13 @@ export default function ChurchScheduleApp() {
       let av = speakers.filter(s => isSpeakerAvailable(s, d, type) && s.id !== exId);
       const p1 = av.filter(s => s.priority === 1), p2 = av.filter(s => s.priority === 2), def = av.filter(s => !s.priority);
       const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
+      const shuf = (arr) => {
+        let a = [...arr], cur = a.length, s = seed + off;
+        while (cur > 0) { let r = Math.floor(((s = (s * 9301 + 49297) % 233280) / 233280) * cur); cur--; [a[cur], a[r]] = [a[r], a[cur]]; }
+        return a;
+      };
       const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
-      return [...p1.sort(sort), ...p2.sort(sort), ...def.sort(sort)];
+      return [...p1.sort(sort), ...p2.sort(sort), ...shuf(def).sort(sort)];
     };
 
     const applyRepeat = (type, list) => {
@@ -277,9 +291,8 @@ export default function ChurchScheduleApp() {
   const exportToPDF = () => {
     const printWindow = window.open('', '_blank');
     const monthName = selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const days = getMonthDays(selectedMonth);
-    const sundays = days.filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 0);
-    const wednesdays = days.filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 3);
+    const sundays = getMonthDays(selectedMonth).filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 0);
+    const wednesdays = getMonthDays(selectedMonth).filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 3);
     
     let sundaysHTML = '';
     sundays.forEach(({ date }) => {
@@ -364,10 +377,11 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
+      {/* HEADER */}
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px' }}>
-            <h1 style={{ margin: 0, fontSize: 'clamp(24px, 5vw, 36px)' }}>✝ {churchName || 'Church Schedule'}</h1>
+            <h1 style={{ margin: 0 }}>✝ {churchName || 'Church Schedule'}</h1>
             <p style={{ opacity: 0.8, fontSize: '14px', marginTop: '4px' }}>Manage speakers and generated schedules</p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -401,7 +415,7 @@ export default function ChurchScheduleApp() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
-            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center', fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
           
@@ -475,7 +489,7 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    <button draggable={!!w && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-wednesdayEvening')} onDrop={() => handleDrop(k + '-wednesdayEvening')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} onClick={() => setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
+                    <button draggable={!!w && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-wednesdayEvening')} onDrop={() => handleDrop(k + '-wednesdayEvening')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
                   </div>
                 );
               })}
@@ -526,7 +540,24 @@ export default function ChurchScheduleApp() {
                 )}
               </div>
             ))}
-            <button className="btn-primary" style={{ width: '100%', marginTop: '10px' }} onClick={() => setShowSettings(false)}>Close</button>
+            
+            {/* New: Member Management in Settings */}
+            <div style={{ marginTop: '32px', borderTop: '2px solid #eee', paddingTop: '20px' }}>
+              <h4 style={{ color: '#1e3a5f', marginBottom: '16px' }}>👥 Organization Members</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {members.map(member => (
+                  <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#fff', border: '1px solid #ddd', borderRadius: '8px' }}>
+                    <div>
+                      <div style={{ fontWeight: '600', fontSize: '14px' }}>{member.name} {member.uid === user.uid ? '(You)' : ''}</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>{member.email}</div>
+                    </div>
+                    <span className="service-badge badge-morning" style={{ margin: 0 }}>{member.role}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button className="btn-primary" style={{ width: '100%', marginTop: '20px' }} onClick={() => setShowSettings(false)}>Close</button>
           </div>
         </div>
       )}
