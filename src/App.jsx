@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// Firebase configuration
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyB1uwoEbX9BSnmbXPBQFOdzJGSdvxv22MM",
   authDomain: "teaching-schedule-generator.firebaseapp.com",
@@ -15,7 +14,6 @@ const FIREBASE_AUTH_URL = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-au
 const FIREBASE_FIRESTORE_URL = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
 
 export default function ChurchScheduleApp() {
-  // Auth state
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -26,12 +24,8 @@ export default function ChurchScheduleApp() {
   const [authName, setAuthName] = useState('');
   const [churchName, setChurchName] = useState('');
   const [dataLoading, setDataLoading] = useState(false);
-  
-  // Organization and Role state
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null); 
-
-  // Profile Edit States
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -42,7 +36,6 @@ export default function ChurchScheduleApp() {
   const db = useRef(null);
   const auth = useRef(null);
 
-  // App state
   const [speakers, setSpeakers] = useState([]);
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -60,16 +53,12 @@ export default function ChurchScheduleApp() {
     communion: { enabled: true, label: 'Communion', time: '' }
   });
 
-  // Load Firebase SDK
   useEffect(() => {
     const loadFirebase = async () => {
       try {
-        if (window.firebase) {
-          initializeFirebase();
-          return;
-        }
-        const loadScript = (url) => new Promise((res, rej) => {
-          const s = document.createElement('script'); s.src = url; s.onload = res; s.onerror = rej; document.head.appendChild(s);
+        if (window.firebase) { initializeFirebase(); return; }
+        const loadScript = (url) => new Promise((resolve, reject) => {
+          const s = document.createElement('script'); s.src = url; s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
         });
         await loadScript(FIREBASE_APP_URL);
         await loadScript(FIREBASE_AUTH_URL);
@@ -92,9 +81,7 @@ export default function ChurchScheduleApp() {
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (showProfile && !e.target.closest('[data-profile-menu]')) setShowProfile(false);
-    };
+    const handleClickOutside = (e) => { if (showProfile && !e.target.closest('[data-profile-menu]')) setShowProfile(false); };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showProfile]);
@@ -112,7 +99,6 @@ export default function ChurchScheduleApp() {
         setUserFirstName(userData.firstName || '');
         setUserLastName(userData.lastName || '');
         setNewEmail(auth.current.currentUser?.email || '');
-
         if (userOrgId) {
           const orgDoc = await db.current.collection('organizations').doc(userOrgId).get();
           if (orgDoc.exists) {
@@ -131,9 +117,7 @@ export default function ChurchScheduleApp() {
   const saveOrgData = async () => {
     if (!db.current || !orgId || dataLoading || !['owner', 'admin'].includes(userRole)) return;
     try {
-      await db.current.collection('organizations').doc(orgId).set({
-        speakers, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await db.current.collection('organizations').doc(orgId).set({ speakers, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() }, { merge: true });
     } catch (err) { console.error('Save failed', err); }
   };
 
@@ -151,15 +135,8 @@ export default function ChurchScheduleApp() {
       const full = `${userFirstName} ${userLastName}`.trim();
       if (newEmail !== u.email) await u.updateEmail(newEmail);
       if (newPassword) await u.updatePassword(newPassword);
-      
-      await db.current.collection('users').doc(u.uid).set({ 
-        firstName: userFirstName, lastName: userLastName, name: full, email: newEmail 
-      }, { merge: true });
-
-      if (userRole === 'owner') {
-        await db.current.collection('organizations').doc(orgId).set({ churchName }, { merge: true });
-      }
-      
+      await db.current.collection('users').doc(u.uid).set({ firstName: userFirstName, lastName: userLastName, name: full, email: newEmail }, { merge: true });
+      if (userRole === 'owner') await db.current.collection('organizations').doc(orgId).set({ churchName }, { merge: true });
       await u.updateProfile({ displayName: full });
       alert('Profile updated!'); setShowEditProfile(false); setNewPassword('');
     } catch (err) { setAuthError(err.message); }
@@ -168,7 +145,7 @@ export default function ChurchScheduleApp() {
   const handleLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try { await auth.current.signInWithEmailAndPassword(authEmail, authPassword); setAuthEmail(''); setAuthPassword(''); }
-    catch (err) { setAuthError(getAuthErrorMessage(err.code)); }
+    catch (err) { setAuthError('Error: ' + err.message); }
   };
 
   const handleRegister = async (e) => {
@@ -177,34 +154,14 @@ export default function ChurchScheduleApp() {
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
       await r.user.updateProfile({ displayName: authName });
       const f = authName.split(' ')[0], l = authName.split(' ').slice(1).join(' ');
-      const newOrgId = `org_${r.user.uid}`;
-      
-      await db.current.collection('organizations').doc(newOrgId).set({
-        churchName: churchName || 'My Church', speakers: [], schedule: {}, serviceSettings, ownerUid: r.user.uid, createdAt: new Date().toISOString()
-      });
-
-      await db.current.collection('users').doc(r.user.uid).set({ 
-        email: authEmail, name: authName, firstName: f, lastName: l, orgId: newOrgId, role: 'owner', createdAt: new Date().toISOString() 
-      });
+      const newOrgId = 'org_' + r.user.uid;
+      await db.current.collection('organizations').doc(newOrgId).set({ churchName: churchName || 'My Church', speakers: [], schedule: {}, serviceSettings, ownerUid: r.user.uid, createdAt: new Date().toISOString() });
+      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, firstName: f, lastName: l, orgId: newOrgId, role: 'owner', createdAt: new Date().toISOString() });
       setOrgId(newOrgId); setUserRole('owner');
     } catch (err) { setAuthError(err.message); }
   };
 
-  const handleLogout = async () => { 
-    await auth.current.signOut(); setSpeakers([]); setSchedule({}); setChurchName(''); setOrgId(null); setUserRole(null); setShowProfile(false); 
-  };
-
-  const getAuthErrorMessage = (code) => {
-    switch (code) {
-      case 'auth/email-already-in-use': return 'This email is already registered';
-      case 'auth/invalid-email': return 'Invalid email address';
-      case 'auth/weak-password': return 'Password is too weak';
-      case 'auth/user-not-found': return 'No account found with this email';
-      case 'auth/wrong-password': return 'Incorrect password';
-      case 'auth/invalid-credential': return 'Invalid email or password';
-      default: return 'An error occurred. Please try again.';
-    }
-  };
+  const handleLogout = async () => { await auth.current.signOut(); setSpeakers([]); setSchedule({}); setChurchName(''); setOrgId(null); setUserRole(null); setShowProfile(false); };
 
   const getMonthDays = (date) => {
     const y = date.getFullYear(), m = date.getMonth();
@@ -257,20 +214,16 @@ export default function ChurchScheduleApp() {
       let av = speakers.filter(s => isSpeakerAvailable(s, d, type) && s.id !== exId);
       const p1 = av.filter(s => s.priority === 1), p2 = av.filter(s => s.priority === 2), def = av.filter(s => !s.priority);
       const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
-      const shuf = (arr) => {
-        let a = [...arr], cur = a.length, s = seed + off;
-        while (cur > 0) { let r = Math.floor(((s = (s * 9301 + 49297) % 233280) / 233280) * cur); cur--; [a[cur], a[r]] = [a[r], a[cur]]; }
-        return a;
-      };
       const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
-      return [...p1.sort(sort), ...p2.sort(sort), ...shuf(def).sort(sort)];
+      const sortedDefault = shuffleArray(def, seed + off).sort(sort);
+      return [...p1.sort(sort), ...p2.sort(sort), ...sortedDefault];
     };
 
     const applyRepeat = (type, list) => {
       speakers.forEach(s => {
         (s.repeatRules || []).filter(r => r.serviceType === type).forEach(r => {
           list.forEach(sl => {
-            const sk = `${sl.dk}-${type}`;
+            const sk = sl.dk + '-' + type;
             if (!newSchedule[sk] && isSpeakerAvailable(s, sl.date, type)) {
               if ((r.pattern === 'everyOther' && ((r.startWeek === 'odd') ? (sl.week % 2 !== 0) : (sl.week % 2 === 0))) || (r.pattern === 'nthWeek' && sl.week === r.nthWeek)) {
                 newSchedule[sk] = { speakerId: s.id, date: sl.dk, serviceType: type }; counts[s.id][type]++;
@@ -283,9 +236,9 @@ export default function ChurchScheduleApp() {
 
     ['sundayMorning', 'sundayEvening', 'wednesdayEvening'].forEach(t => applyRepeat(t, slots[t]));
     const fill = (t, list, ex) => list.forEach(sl => {
-      const sk = `${sl.dk}-${t}`;
+      const sk = sl.dk + '-' + t;
       if (!newSchedule[sk]) {
-        const sel = getAvailable(sl.date, t, ex ? newSchedule[`${sl.dk}-${ex}`]?.speakerId : null)[0];
+        const sel = getAvailable(sl.date, t, ex ? newSchedule[sl.dk + '-' + ex]?.speakerId : null)[0];
         if (sel) { newSchedule[sk] = { speakerId: sel.id, date: sl.dk, serviceType: t }; counts[sel.id][t]++; }
       }
     });
@@ -297,7 +250,8 @@ export default function ChurchScheduleApp() {
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach(key => {
-      const slotDate = new Date(key.split('-').slice(0, 3).join('-'));
+      const dParts = key.split('-');
+      const slotDate = new Date(dParts[0], dParts[1] - 1, dParts[2]);
       if (slotDate.getFullYear() === year && slotDate.getMonth() === month) delete newSchedule[key];
     });
     setSchedule(newSchedule);
@@ -312,21 +266,21 @@ export default function ChurchScheduleApp() {
     
     let sundaysHTML = '';
     sundays.forEach(({ date }) => {
-      const dk = date.toISOString().split('T')[0], sm = schedule[`${dk}-sundayMorning`], c = schedule[`${dk}-communion`], se = schedule[`${dk}-sundayEvening`];
+      const dk = date.toISOString().split('T')[0], sm = schedule[dk + '-sundayMorning'], c = schedule[dk + '-communion'], se = schedule[dk + '-sundayEvening'];
       let sv = '';
-      if (serviceSettings.sundayMorning.enabled) sv += `<div style="background:#dbeafe;color:#1e40af;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>${serviceSettings.sundayMorning.time}:</strong> ${sm ? getSpeakerName(sm.speakerId) : '—'}</div>`;
-      if (serviceSettings.communion.enabled) sv += `<div style="background:#fce7f3;color:#be185d;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>Communion:</strong> ${c ? getSpeakerName(c.speakerId) : '—'}</div>`;
-      if (serviceSettings.sundayEvening.enabled) sv += `<div style="background:#ede9fe;color:#5b21b6;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>${serviceSettings.sundayEvening.time}:</strong> ${se ? getSpeakerName(se.speakerId) : '—'}</div>`;
-      sundaysHTML += `<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>${sv}</div>`;
+      if (serviceSettings.sundayMorning.enabled) sv += '<div style="background:#dbeafe;color:#1e40af;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>' + serviceSettings.sundayMorning.time + ':</strong> ' + (sm ? getSpeakerName(sm.speakerId) : '—') + '</div>';
+      if (serviceSettings.communion.enabled) sv += '<div style="background:#fce7f3;color:#be185d;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>Communion:</strong> ' + (c ? getSpeakerName(c.speakerId) : '—') + '</div>';
+      if (serviceSettings.sundayEvening.enabled) sv += '<div style="background:#ede9fe;color:#5b21b6;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>' + serviceSettings.sundayEvening.time + ':</strong> ' + (se ? getSpeakerName(se.speakerId) : '—') + '</div>';
+      sundaysHTML += '<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">' + date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</div>' + sv + '</div>';
     });
 
     let wedsHTML = '';
     wednesdays.forEach(({ date }) => {
-      const dk = date.toISOString().split('T')[0], w = schedule[`${dk}-wednesdayEvening`];
-      wedsHTML += `<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div><div style="background:#d1fae5;color:#065f46;padding:6px 10px;border-radius:4px;font-size:13px;"><strong>${serviceSettings.wednesdayEvening.time}:</strong> ${w ? getSpeakerName(w.speakerId) : '—'}</div></div>`;
+      const dk = date.toISOString().split('T')[0], w = schedule[dk + '-wednesdayEvening'];
+      wedsHTML += '<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">' + date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</div><div style="background:#d1fae5;color:#065f46;padding:6px 10px;border-radius:4px;font-size:13px;"><strong>' + serviceSettings.wednesdayEvening.time + ':</strong> ' + (w ? getSpeakerName(w.speakerId) : '—') + '</div></div>';
     });
 
-    printWindow.document.write(`<html><head><title>Schedule - ${monthName}</title><style>body { font-family: sans-serif; padding: 20px; } h1, h2 { text-align: center; color: #1e3a5f; } .container { display: flex; gap: 24px; } .column { flex: 1; } .column-header { background: #1e3a5f; color: white; padding: 12px; text-align: center; font-weight: bold; }</style></head><body><h1>Teaching Schedule</h1><h2>${monthName}</h2><div class="container"><div class="column"><div class="column-header">Sundays</div>${sundaysHTML}</div><div class="column"><div class="column-header">Wednesdays</div>${wedsHTML}</div></div><script>window.print();</script></body></html>`);
+    printWindow.document.write('<html><head><title>Schedule - ' + monthName + '</title><style>body { font-family: sans-serif; padding: 20px; } h1, h2 { text-align: center; color: #1e3a5f; } .container { display: flex; gap: 24px; } .column { flex: 1; } .column-header { background: #1e3a5f; color: white; padding: 12px; text-align: center; font-weight: bold; }</style></head><body><h1>Teaching Schedule</h1><h2>' + monthName + '</h2><div class="container"><div class="column"><div class="column-header">Sundays</div>' + sundaysHTML + '</div><div class="column"><div class="column-header">Wednesdays</div>' + wedsHTML + '</div></div><script>window.print();</script></body></html>');
     printWindow.document.close();
   };
 
@@ -350,7 +304,7 @@ export default function ChurchScheduleApp() {
 
   const getSpeakerName = (id) => {
     const s = speakers.find(s => s.id === id);
-    return s ? `${s.firstName} ${s.lastName}` : '';
+    return s ? (s.firstName + ' ' + s.lastName) : '';
   };
 
   if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Loading...</div>;
@@ -396,7 +350,7 @@ export default function ChurchScheduleApp() {
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px' }}>
-            <h1 style={{ margin: 0, fontSize: 'clamp(24px, 5vw, 36px)' }}>✝ {churchName || 'Church Schedule'}</h1>
+            <h1 style={{ margin: 0 }}>✝ {churchName || 'Church Schedule'}</h1>
             <p style={{ opacity: 0.8, fontSize: '14px', marginTop: '4px' }}>Manage speakers and generated schedules</p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -423,14 +377,14 @@ export default function ChurchScheduleApp() {
 
       <main style={{ maxWidth: '1200px', margin: '24px auto', padding: '0 16px' }}>
         <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto' }}>
-          <button className={`nav-tab ${view === 'speakers' ? 'active' : ''}`} onClick={() => setView('speakers')}>👤 Speakers</button>
-          <button className={`nav-tab ${view === 'calendar' ? 'active' : ''}`} onClick={() => setView('calendar')}>📅 Calendar</button>
+          <button className={'nav-tab ' + (view === 'speakers' ? 'active' : '')} onClick={() => setView('speakers')}>👤 Speakers</button>
+          <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
         </nav>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
-            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center', fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
           
@@ -445,12 +399,10 @@ export default function ChurchScheduleApp() {
 
         {view === 'speakers' ? (
           <div>
-            {['owner', 'admin'].includes(userRole) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-                <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: 'clamp(18px, 4vw, 24px)' }}>Manage Speakers ({speakers.length})</h2>
-                <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: {}, blockOffDates: [], repeatRules: [] }); setShowAddSpeaker(true); }}>+ Add Speaker</button>
-              </div>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+              <h2 style={{ color: '#1e3a5f', margin: 0 }}>Manage Speakers ({speakers.length})</h2>
+              {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: {}, blockOffDates: [], repeatRules: [] }); setShowAddSpeaker(true); }}>+ Add Speaker</button>}
+            </div>
             {speakers.map(s => (
               <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
@@ -485,28 +437,28 @@ export default function ChurchScheduleApp() {
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexWrap: 'wrap' }}>
             <div style={{ flex: '1 1 300px', borderRight: '1px solid #eee' }}>
-              <div style={{ padding: '12px', textAlign: 'center', background: '#f8f6f3', fontWeight: 'bold' }}>Sundays</div>
+              <div style={{ padding: '16px', textAlign: 'center', background: '#f8f6f3', fontWeight: 'bold' }}>Sundays</div>
               {getMonthDays(selectedMonth).filter(d => d.isCurrentMonth && d.date.getDay() === 0).map(d => {
                 const k = d.date.toISOString().split('T')[0];
-                const sm = schedule[`${k}-sundayMorning`], c = schedule[`${k}-communion`], se = schedule[`${k}-sundayEvening`];
+                const sm = schedule[k + '-sundayMorning'], c = schedule[k + '-communion'], se = schedule[k + '-sundayEvening'];
                 return (
-                  <div key={k} style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
+                  <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    {serviceSettings.sundayMorning.enabled && <button draggable={!!sm && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(`${k}-sundayMorning`)} onDrop={() => handleDrop(`${k}-sundayMorning`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${sm ? 'badge-morning' : 'bar-empty'}`} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: `${k}-sundayMorning`, date: k, serviceType: 'sundayMorning' })}>{serviceSettings.sundayMorning.time}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</button>}
-                    {serviceSettings.communion.enabled && <button draggable={!!c && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(`${k}-communion`)} onDrop={() => handleDrop(`${k}-communion`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${c ? 'badge-communion' : 'bar-empty'}`} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: `${k}-communion`, date: k, serviceType: 'communion' })}>Communion: {c ? getSpeakerName(c.speakerId) : '+ Assign'}</button>}
-                    {serviceSettings.sundayEvening.enabled && <button draggable={!!se && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(`${k}-sundayEvening`)} onDrop={() => handleDrop(`${k}-sundayEvening`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${se ? 'badge-evening' : 'bar-empty'}`} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: `${k}-sundayEvening`, date: k, serviceType: 'sundayEvening' })}>{serviceSettings.sundayEvening.time}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.sundayMorning.enabled && <button draggable={!!sm && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-sundayMorning')} onDrop={() => handleDrop(k + '-sundayMorning')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (sm ? 'badge-morning' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayMorning', date: k, serviceType: 'sundayMorning' })}>{serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.communion.enabled && <button draggable={!!c && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-communion')} onDrop={() => handleDrop(k + '-communion')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (c ? 'badge-communion' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-communion', date: k, serviceType: 'communion' })}>Communion: {c ? getSpeakerName(c.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.sundayEvening.enabled && <button draggable={!!se && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-sundayEvening')} onDrop={() => handleDrop(k + '-sundayEvening')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (se ? 'badge-evening' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayEvening', date: k, serviceType: 'sundayEvening' })}>{serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}</button>}
                   </div>
                 );
               })}
             </div>
             <div style={{ flex: '1 1 300px' }}>
-              <div style={{ padding: '12px', textAlign: 'center', background: '#f8f6f3', fontWeight: 'bold' }}>Wednesdays</div>
+              <div style={{ padding: '16px', textAlign: 'center', background: '#f8f6f3', fontWeight: 'bold' }}>Wednesdays</div>
               {getMonthDays(selectedMonth).filter(d => d.isCurrentMonth && d.date.getDay() === 3).map(d => {
-                const k = d.date.toISOString().split('T')[0], w = schedule[`${k}-wednesdayEvening`];
+                const k = d.date.toISOString().split('T')[0], w = schedule[k + '-wednesdayEvening'];
                 return (
-                  <div key={k} style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
+                  <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    <button draggable={!!w && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(`${k}-wednesdayEvening`)} onDrop={() => handleDrop(`${k}-wednesdayEvening`)} onDragOver={e => e.preventDefault()} className={`calendar-bar ${w ? 'badge-wednesday' : 'bar-empty'}`} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: `${k}-wednesdayEvening`, date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.time}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
+                    <button draggable={!!w && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-wednesdayEvening')} onDrop={() => handleDrop(k + '-wednesdayEvening')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
                   </div>
                 );
               })}
@@ -515,12 +467,13 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
+      {/* MODALS */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 20px 0' }}>Edit Profile & Congregation</h3>
             <form onSubmit={handleUpdateProfile}>
-              <div style={{ marginBottom: '12px' }}><label>Congregation/Church Name</label><input className="input-field" value={churchName} onChange={e => setChurchName(e.target.value)} disabled={userRole !== 'owner'} required /></div>
+              <div style={{ marginBottom: '12px' }}><label>Congregation Name</label><input className="input-field" value={churchName} onChange={e => setChurchName(e.target.value)} disabled={userRole !== 'owner'} required /></div>
               <div style={{ marginBottom: '12px' }}><label>First Name</label><input className="input-field" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required /></div>
               <div style={{ marginBottom: '12px' }}><label>Last Name</label><input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required /></div>
               <div style={{ marginBottom: '12px' }}><label>Email</label><input className="input-field" value={newEmail} onChange={e => setNewEmail(e.target.value)} required /></div>
@@ -537,7 +490,7 @@ export default function ChurchScheduleApp() {
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>⚙️ Settings</h3>
+            <h3 style={{ margin: '0 0 20px 0' }}>⚙️ Service Settings</h3>
             {Object.keys(serviceSettings).map(k => (
               <div key={k} style={{ padding: '12px', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px' }}>
                 <label style={{ display: 'flex', gap: '10px', fontWeight: 'bold', marginBottom: '8px' }}>
@@ -551,7 +504,7 @@ export default function ChurchScheduleApp() {
                 )}
               </div>
             ))}
-            <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowSettings(false)}>Close</button>
+            <button className="btn-primary" style={{ width: '100%', marginTop: '10px' }} onClick={() => setShowSettings(false)}>Close</button>
           </div>
         </div>
       )}
@@ -572,13 +525,15 @@ export default function ChurchScheduleApp() {
             </div>
             <div style={{ marginBottom: '12px' }}>
               <strong>Availability</strong><br />
-              <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayMorning: e.target.checked } })} /> Sun Morning</label><br />
-              <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayEvening: e.target.checked } })} /> Sun Evening</label><br />
-              <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, wednesdayEvening: e.target.checked } })} /> Wednesday</label><br />
-              <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, communion: e.target.checked } })} /> Communion</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayMorning: e.target.checked } })} /> Sun Morning</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayEvening: e.target.checked } })} /> Sun Evening</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, wednesdayEvening: e.target.checked } })} /> Wednesday</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, communion: e.target.checked } })} /> Communion</label>
+              </div>
             </div>
             <div style={{ marginBottom: '16px' }}>
-              <strong>Repeat Rules</strong>
+              <strong>Repeat Speaking Rules</strong>
               {(editingSpeaker.repeatRules || []).map((r, i) => (
                 <div key={i} style={{ background: '#f8f6f3', padding: '10px', borderRadius: '8px', marginTop: '8px', border: '1px solid #eee' }}>
                   <select className="input-field" value={r.serviceType} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].serviceType = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
