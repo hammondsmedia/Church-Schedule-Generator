@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Firebase configuration
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyB1uwoEbX9BSnmbXPBQFOdzJGSdvxv22MM",
   authDomain: "teaching-schedule-generator.firebaseapp.com",
@@ -24,8 +25,10 @@ export default function ChurchScheduleApp() {
   const [authName, setAuthName] = useState('');
   const [churchName, setChurchName] = useState('');
   const [dataLoading, setDataLoading] = useState(false);
+  
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null); 
+
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -142,10 +145,37 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
+  // NEW: Handle Account Deletion
+  const handleDeleteAccount = async () => {
+    const confirmMessage = userRole === 'owner' 
+      ? "WARNING: You are the owner of this organization. Deleting your account will leave the church schedule without an owner. Are you sure you want to proceed?"
+      : "Are you sure you want to permanently delete your account? This action cannot be undone.";
+
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const u = auth.current.currentUser;
+      // 1. Remove user document from Firestore
+      await db.current.collection('users').doc(u.uid).delete();
+      
+      // 2. Delete the user from Firebase Auth
+      await u.delete();
+      
+      alert('Your account has been deleted.');
+      handleLogout();
+    } catch (err) {
+      if (err.code === 'auth/requires-recent-login') {
+        alert('For security, please sign out and sign back in before deleting your account.');
+      } else {
+        alert('Error deleting account: ' + err.message);
+      }
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault(); setAuthError('');
     try { await auth.current.signInWithEmailAndPassword(authEmail, authPassword); setAuthEmail(''); setAuthPassword(''); }
-    catch (err) { setAuthError('Error: ' + err.message); }
+    catch (err) { setAuthError(err.message); }
   };
 
   const handleRegister = async (e) => {
@@ -180,18 +210,6 @@ export default function ChurchScheduleApp() {
     return true;
   };
 
-  const shuffleArray = (array, seed) => {
-    const shuffled = [...array];
-    let currentIndex = shuffled.length;
-    const seededRandom = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-    while (currentIndex > 0) {
-      const randomIndex = Math.floor(seededRandom() * currentIndex);
-      currentIndex--;
-      [shuffled[currentIndex], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[currentIndex]];
-    }
-    return shuffled;
-  };
-
   const generateSchedule = () => {
     const days = getMonthDays(selectedMonth), newSchedule = { ...schedule };
     const seed = selectedMonth.getFullYear() * 12 + selectedMonth.getMonth();
@@ -215,8 +233,7 @@ export default function ChurchScheduleApp() {
       const p1 = av.filter(s => s.priority === 1), p2 = av.filter(s => s.priority === 2), def = av.filter(s => !s.priority);
       const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
       const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
-      const sortedDefault = shuffleArray(def, seed + off).sort(sort);
-      return [...p1.sort(sort), ...p2.sort(sort), ...sortedDefault];
+      return [...p1.sort(sort), ...p2.sort(sort), ...def.sort(sort)];
     };
 
     const applyRepeat = (type, list) => {
@@ -350,7 +367,7 @@ export default function ChurchScheduleApp() {
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px' }}>
-            <h1 style={{ margin: 0 }}>✝ {churchName || 'Church Schedule'}</h1>
+            <h1 style={{ margin: 0, fontSize: 'clamp(24px, 5vw, 36px)' }}>✝ {churchName || 'Church Schedule'}</h1>
             <p style={{ opacity: 0.8, fontSize: '14px', marginTop: '4px' }}>Manage speakers and generated schedules</p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -384,7 +401,7 @@ export default function ChurchScheduleApp() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
-            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center', fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
           
@@ -458,7 +475,7 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    <button draggable={!!w && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-wednesdayEvening')} onDrop={() => handleDrop(k + '-wednesdayEvening')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
+                    <button draggable={!!w && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-wednesdayEvening')} onDrop={() => handleDrop(k + '-wednesdayEvening')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} onClick={() => setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
                   </div>
                 );
               })}
@@ -478,6 +495,11 @@ export default function ChurchScheduleApp() {
               <div style={{ marginBottom: '12px' }}><label>Last Name</label><input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required /></div>
               <div style={{ marginBottom: '12px' }}><label>Email</label><input className="input-field" value={newEmail} onChange={e => setNewEmail(e.target.value)} required /></div>
               <div style={{ marginBottom: '24px' }}><label>New Password</label><input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" /></div>
+              
+              <div style={{ borderTop: '1px solid #eee', paddingTop: '20px', marginBottom: '24px' }}>
+                <button type="button" onClick={handleDeleteAccount} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', padding: 0 }}>Delete My Account</button>
+              </div>
+
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button>
                 <button type="submit" className="btn-primary">Save Changes</button>
