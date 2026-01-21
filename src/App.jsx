@@ -26,11 +26,11 @@ export default function ChurchScheduleApp() {
   const [churchName, setChurchName] = useState('');
   const [dataLoading, setDataLoading] = useState(false);
   
-  // Organization and Roles
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null); 
-  const [members, setMembers] = useState([]); // New: Track organization members
-  const [inviteEmail, setInviteEmail] = useState(''); // New: Handle invitation input
+  const [members, setMembers] = useState([]);
+  const [inviteRole, setInviteRole] = useState('viewer'); // New: Role for invitation
+  const [generatedInvite, setGeneratedInvite] = useState(''); // New: Store invite link
 
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
@@ -55,7 +55,7 @@ export default function ChurchScheduleApp() {
   const [serviceSettings, setServiceSettings] = useState({
     sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
     sundayEvening: { enabled: true, label: 'Sunday Evening', time: '6:00 PM' },
-    wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:00 PM' },
+    wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
     communion: { enabled: true, label: 'Communion', time: '' }
   });
 
@@ -63,8 +63,8 @@ export default function ChurchScheduleApp() {
     const loadFirebase = async () => {
       try {
         if (window.firebase) { initializeFirebase(); return; }
-        const loadScript = (url) => new Promise((resolve, reject) => {
-          const s = document.createElement('script'); s.src = url; s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+        const loadScript = (url) => new Promise((res, rej) => {
+          const s = document.createElement('script'); s.src = url; s.onload = res; s.onerror = rej; document.head.appendChild(s);
         });
         await loadScript(FIREBASE_APP_URL);
         await loadScript(FIREBASE_AUTH_URL);
@@ -92,7 +92,6 @@ export default function ChurchScheduleApp() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showProfile]);
 
-  // New: Fetch all users belonging to the same Org
   const fetchMembers = async (targetOrgId) => {
     if (!db.current || !targetOrgId) return;
     try {
@@ -115,9 +114,8 @@ export default function ChurchScheduleApp() {
         setUserFirstName(userData.firstName || '');
         setUserLastName(userData.lastName || '');
         setNewEmail(auth.current.currentUser?.email || '');
-
         if (userOrgId) {
-          fetchMembers(userOrgId); // Fetch members whenever org data loads
+          fetchMembers(userOrgId);
           const orgDoc = await db.current.collection('organizations').doc(userOrgId).get();
           if (orgDoc.exists) {
             const orgData = orgDoc.data();
@@ -135,9 +133,7 @@ export default function ChurchScheduleApp() {
   const saveOrgData = async () => {
     if (!db.current || !orgId || dataLoading || !['owner', 'admin'].includes(userRole)) return;
     try {
-      await db.current.collection('organizations').doc(orgId).set({
-        speakers, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await db.current.collection('organizations').doc(orgId).set({ speakers, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() }, { merge: true });
     } catch (err) { console.error('Save failed', err); }
   };
 
@@ -160,6 +156,22 @@ export default function ChurchScheduleApp() {
       await u.updateProfile({ displayName: full });
       alert('Profile updated!'); setShowEditProfile(false); setNewPassword('');
     } catch (err) { setAuthError(err.message); }
+  };
+
+  // New: Logic to generate an invitation link
+  const generateInviteLink = async () => {
+    if (!orgId) return;
+    try {
+      const inviteCode = Math.random().toString(36).substring(2, 10);
+      await db.current.collection('invitations').doc(inviteCode).set({
+        orgId: orgId,
+        role: inviteRole,
+        churchName: churchName,
+        createdAt: new Date().toISOString()
+      });
+      const link = window.location.origin + '?invite=' + inviteCode;
+      setGeneratedInvite(link);
+    } catch (err) { alert('Error generating invite: ' + err.message); }
   };
 
   const handleDeleteAccount = async () => {
@@ -188,13 +200,57 @@ export default function ChurchScheduleApp() {
   const handleRegister = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
+      // Check for invite code in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const inviteCode = urlParams.get('invite');
+      let targetOrgId = null;
+      let targetRole = 'owner';
+      let targetChurchName = churchName;
+
+      if (inviteCode) {
+        const inviteDoc = await db.current.collection('invitations').doc(inviteCode).get();
+        if (inviteDoc.exists) {
+          const inviteData = inviteDoc.data();
+          targetOrgId = inviteData.orgId;
+          targetRole = inviteData.role;
+          targetChurchName = inviteData.churchName;
+        } else {
+          setAuthError('Invalid or expired invitation link.');
+          return;
+        }
+      }
+
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
       await r.user.updateProfile({ displayName: authName });
       const f = authName.split(' ')[0], l = authName.split(' ').slice(1).join(' ');
-      const newOrgId = 'org_' + r.user.uid;
-      await db.current.collection('organizations').doc(newOrgId).set({ churchName: churchName || 'My Church', speakers: [], schedule: {}, serviceSettings, ownerUid: r.user.uid, createdAt: new Date().toISOString() });
-      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, firstName: f, lastName: l, orgId: newOrgId, role: 'owner', createdAt: new Date().toISOString() });
-      setOrgId(newOrgId); setUserRole('owner');
+      
+      const finalOrgId = targetOrgId || ('org_' + r.user.uid);
+      
+      if (!targetOrgId) {
+        // Create new organization if no invite
+        await db.current.collection('organizations').doc(finalOrgId).set({
+          churchName: targetChurchName || 'My Church',
+          speakers: [],
+          schedule: {},
+          serviceSettings,
+          ownerUid: r.user.uid,
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      await db.current.collection('users').doc(r.user.uid).set({ 
+        email: authEmail, 
+        name: authName, 
+        firstName: f, 
+        lastName: l, 
+        orgId: finalOrgId, 
+        role: targetRole, 
+        createdAt: new Date().toISOString() 
+      });
+      
+      setOrgId(finalOrgId);
+      setUserRole(targetRole);
+      window.history.pushState({}, document.title, "/"); // Clean URL
     } catch (err) { setAuthError(err.message); }
   };
 
@@ -219,6 +275,18 @@ export default function ChurchScheduleApp() {
     return true;
   };
 
+  const shuffleArray = (array, seed) => {
+    const shuffled = [...array];
+    let currentIndex = shuffled.length;
+    const seededRandom = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    while (currentIndex > 0) {
+      const randomIndex = Math.floor(seededRandom() * currentIndex);
+      currentIndex--;
+      [shuffled[currentIndex], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[currentIndex]];
+    }
+    return shuffled;
+  };
+
   const generateSchedule = () => {
     const days = getMonthDays(selectedMonth), newSchedule = { ...schedule };
     const seed = selectedMonth.getFullYear() * 12 + selectedMonth.getMonth();
@@ -241,13 +309,9 @@ export default function ChurchScheduleApp() {
       let av = speakers.filter(s => isSpeakerAvailable(s, d, type) && s.id !== exId);
       const p1 = av.filter(s => s.priority === 1), p2 = av.filter(s => s.priority === 2), def = av.filter(s => !s.priority);
       const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
-      const shuf = (arr) => {
-        let a = [...arr], cur = a.length, s = seed + off;
-        while (cur > 0) { let r = Math.floor(((s = (s * 9301 + 49297) % 233280) / 233280) * cur); cur--; [a[cur], a[r]] = [a[r], a[cur]]; }
-        return a;
-      };
       const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
-      return [...p1.sort(sort), ...p2.sort(sort), ...shuf(def).sort(sort)];
+      const sortedDefault = shuffleArray(def, seed + off).sort(sort);
+      return [...p1.sort(sort), ...p2.sort(sort), ...sortedDefault];
     };
 
     const applyRepeat = (type, list) => {
@@ -291,8 +355,9 @@ export default function ChurchScheduleApp() {
   const exportToPDF = () => {
     const printWindow = window.open('', '_blank');
     const monthName = selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const sundays = getMonthDays(selectedMonth).filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 0);
-    const wednesdays = getMonthDays(selectedMonth).filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 3);
+    const days = getMonthDays(selectedMonth);
+    const sundays = days.filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 0);
+    const wednesdays = days.filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 3);
     
     let sundaysHTML = '';
     sundays.forEach(({ date }) => {
@@ -377,7 +442,6 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      {/* HEADER */}
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px' }}>
@@ -541,9 +605,30 @@ export default function ChurchScheduleApp() {
               </div>
             ))}
             
-            {/* New: Member Management in Settings */}
+            {/* New: Member Management & Invite Section */}
             <div style={{ marginTop: '32px', borderTop: '2px solid #eee', paddingTop: '20px' }}>
               <h4 style={{ color: '#1e3a5f', marginBottom: '16px' }}>👥 Organization Members</h4>
+              
+              {userRole === 'owner' && (
+                <div style={{ background: '#f8f6f3', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
+                  <p style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Generate Invitation Link</p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select className="input-field" style={{ flex: 1 }} value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
+                      <option value="viewer">Viewer</option>
+                      <option value="standard">Standard</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <button className="btn-primary" onClick={generateInviteLink} style={{ padding: '0 16px', fontSize: '13px' }}>Generate</button>
+                  </div>
+                  {generatedInvite && (
+                    <div style={{ marginTop: '12px' }}>
+                      <p style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Copy this link and send it to your team member:</p>
+                      <input className="input-field" readOnly value={generatedInvite} style={{ fontSize: '12px', background: '#fff' }} onClick={e => e.target.select()} />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {members.map(member => (
                   <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#fff', border: '1px solid #ddd', borderRadius: '8px' }}>
