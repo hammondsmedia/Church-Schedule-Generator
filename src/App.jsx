@@ -29,8 +29,8 @@ export default function ChurchScheduleApp() {
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null); 
   const [members, setMembers] = useState([]);
-  const [inviteRole, setInviteRole] = useState('viewer'); // New: Role for invitation
-  const [generatedInvite, setGeneratedInvite] = useState(''); // New: Store invite link
+  const [inviteRole, setInviteRole] = useState('viewer');
+  const [generatedInvite, setGeneratedInvite] = useState('');
 
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
@@ -55,7 +55,7 @@ export default function ChurchScheduleApp() {
   const [serviceSettings, setServiceSettings] = useState({
     sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
     sundayEvening: { enabled: true, label: 'Sunday Evening', time: '6:00 PM' },
-    wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
+    wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:00 PM' },
     communion: { enabled: true, label: 'Communion', time: '' }
   });
 
@@ -63,8 +63,8 @@ export default function ChurchScheduleApp() {
     const loadFirebase = async () => {
       try {
         if (window.firebase) { initializeFirebase(); return; }
-        const loadScript = (url) => new Promise((res, rej) => {
-          const s = document.createElement('script'); s.src = url; s.onload = res; s.onerror = rej; document.head.appendChild(s);
+        const loadScript = (url) => new Promise((resolve, reject) => {
+          const s = document.createElement('script'); s.src = url; s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
         });
         await loadScript(FIREBASE_APP_URL);
         await loadScript(FIREBASE_AUTH_URL);
@@ -158,7 +158,6 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
-  // New: Logic to generate an invitation link
   const generateInviteLink = async () => {
     if (!orgId) return;
     try {
@@ -200,7 +199,6 @@ export default function ChurchScheduleApp() {
   const handleRegister = async (e) => {
     e.preventDefault(); setAuthError('');
     try {
-      // Check for invite code in URL
       const urlParams = new URLSearchParams(window.location.search);
       const inviteCode = urlParams.get('invite');
       let targetOrgId = null;
@@ -223,34 +221,15 @@ export default function ChurchScheduleApp() {
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
       await r.user.updateProfile({ displayName: authName });
       const f = authName.split(' ')[0], l = authName.split(' ').slice(1).join(' ');
-      
       const finalOrgId = targetOrgId || ('org_' + r.user.uid);
-      
       if (!targetOrgId) {
-        // Create new organization if no invite
         await db.current.collection('organizations').doc(finalOrgId).set({
-          churchName: targetChurchName || 'My Church',
-          speakers: [],
-          schedule: {},
-          serviceSettings,
-          ownerUid: r.user.uid,
-          createdAt: new Date().toISOString()
+          churchName: targetChurchName || 'My Church', speakers: [], schedule: {}, serviceSettings, ownerUid: r.user.uid, createdAt: new Date().toISOString()
         });
       }
-
-      await db.current.collection('users').doc(r.user.uid).set({ 
-        email: authEmail, 
-        name: authName, 
-        firstName: f, 
-        lastName: l, 
-        orgId: finalOrgId, 
-        role: targetRole, 
-        createdAt: new Date().toISOString() 
-      });
-      
-      setOrgId(finalOrgId);
-      setUserRole(targetRole);
-      window.history.pushState({}, document.title, "/"); // Clean URL
+      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, firstName: f, lastName: l, orgId: finalOrgId, role: targetRole, createdAt: new Date().toISOString() });
+      setOrgId(finalOrgId); setUserRole(targetRole);
+      window.history.pushState({}, document.title, "/");
     } catch (err) { setAuthError(err.message); }
   };
 
@@ -442,10 +421,11 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
+      {/* HEADER: MOBILE WRAP FIX */}
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px' }}>
-            <h1 style={{ margin: 0 }}>✝ {churchName || 'Church Schedule'}</h1>
+            <h1 style={{ margin: 0, fontSize: 'clamp(24px, 5vw, 36px)' }}>✝ {churchName || 'Church Schedule'}</h1>
             <p style={{ opacity: 0.8, fontSize: '14px', marginTop: '4px' }}>Manage speakers and generated schedules</p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -471,15 +451,17 @@ export default function ChurchScheduleApp() {
       </header>
 
       <main style={{ maxWidth: '1200px', margin: '24px auto', padding: '0 16px' }}>
-        <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto' }}>
+        {/* TABS: MOBILE SCROLL FIX */}
+        <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <button className={'nav-tab ' + (view === 'speakers' ? 'active' : '')} onClick={() => setView('speakers')}>👤 Speakers</button>
           <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
         </nav>
 
+        {/* ACTIONS: MOBILE WRAP FIX */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
-            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center', fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
           
@@ -495,7 +477,7 @@ export default function ChurchScheduleApp() {
         {view === 'speakers' ? (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-              <h2 style={{ color: '#1e3a5f', margin: 0 }}>Manage Speakers ({speakers.length})</h2>
+              <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: 'clamp(18px, 4vw, 24px)' }}>Manage Speakers ({speakers.length})</h2>
               {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: {}, blockOffDates: [], repeatRules: [] }); setShowAddSpeaker(true); }}>+ Add Speaker</button>}
             </div>
             {speakers.map(s => (
@@ -562,7 +544,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* MODALS */}
+      {/* MODALS: MOBILE RESPONSIVE WRAPPERS */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -597,28 +579,27 @@ export default function ChurchScheduleApp() {
                   <input type="checkbox" checked={serviceSettings[k].enabled} onChange={e => setServiceSettings({ ...serviceSettings, [k]: { ...serviceSettings[k], enabled: e.target.checked } })} /> {serviceSettings[k].label}
                 </label>
                 {serviceSettings[k].enabled && (
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input className="input-field" value={serviceSettings[k].label} onChange={e => setServiceSettings({ ...serviceSettings, [k]: { ...serviceSettings[k], label: e.target.value } })} />
-                    {k !== 'communion' && <input className="input-field" value={serviceSettings[k].time} onChange={e => setServiceSettings({ ...serviceSettings, [k]: { ...serviceSettings[k], time: e.target.value } })} />}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <input className="input-field" style={{flex: '1 1 200px'}} value={serviceSettings[k].label} onChange={e => setServiceSettings({ ...serviceSettings, [k]: { ...serviceSettings[k], label: e.target.value } })} />
+                    {k !== 'communion' && <input className="input-field" style={{flex: '1 1 100px'}} value={serviceSettings[k].time} onChange={e => setServiceSettings({ ...serviceSettings, [k]: { ...serviceSettings[k], time: e.target.value } })} />}
                   </div>
                 )}
               </div>
             ))}
             
-            {/* New: Member Management & Invite Section */}
             <div style={{ marginTop: '32px', borderTop: '2px solid #eee', paddingTop: '20px' }}>
               <h4 style={{ color: '#1e3a5f', marginBottom: '16px' }}>👥 Organization Members</h4>
               
               {userRole === 'owner' && (
                 <div style={{ background: '#f8f6f3', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
                   <p style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Generate Invitation Link</p>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <select className="input-field" style={{ flex: 1 }} value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <select className="input-field" style={{ flex: '1 1 150px' }} value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
                       <option value="viewer">Viewer</option>
                       <option value="standard">Standard</option>
                       <option value="admin">Admin</option>
                     </select>
-                    <button className="btn-primary" onClick={generateInviteLink} style={{ padding: '0 16px', fontSize: '13px' }}>Generate</button>
+                    <button className="btn-primary" onClick={generateInviteLink} style={{ flex: '1 1 100px', padding: '0 16px', fontSize: '13px' }}>Generate</button>
                   </div>
                   {generatedInvite && (
                     <div style={{ marginTop: '12px' }}>
@@ -631,7 +612,7 @@ export default function ChurchScheduleApp() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {members.map(member => (
-                  <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#fff', border: '1px solid #ddd', borderRadius: '8px' }}>
+                  <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#fff', border: '1px solid #ddd', borderRadius: '8px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
                       <div style={{ fontWeight: '600', fontSize: '14px' }}>{member.name} {member.uid === user.uid ? '(You)' : ''}</div>
                       <div style={{ fontSize: '12px', color: '#666' }}>{member.email}</div>
@@ -651,9 +632,9 @@ export default function ChurchScheduleApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '450px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3>{speakers.find(s => s.id === editingSpeaker.id) ? 'Edit' : 'Add'} Speaker</h3>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-              <input className="input-field" placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
-              <input className="input-field" placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+              <input className="input-field" style={{flex: '1 1 180px'}} placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
+              <input className="input-field" style={{flex: '1 1 180px'}} placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
             </div>
             <div style={{ marginBottom: '12px' }}>
               <label>Priority</label>
@@ -663,7 +644,7 @@ export default function ChurchScheduleApp() {
             </div>
             <div style={{ marginBottom: '12px' }}>
               <strong>Availability</strong><br />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', marginTop: '8px' }}>
                 <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayMorning: e.target.checked } })} /> Sun Morning</label>
                 <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayEvening: e.target.checked } })} /> Sun Evening</label>
                 <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, wednesdayEvening: e.target.checked } })} /> Wednesday</label>
