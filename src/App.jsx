@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import emailjs from '@emailjs/browser';
 
 // Firebase configuration
 const FIREBASE_CONFIG = {
@@ -26,9 +27,11 @@ export default function ChurchScheduleApp() {
   const [churchName, setChurchName] = useState('');
   const [dataLoading, setDataLoading] = useState(false);
   
+  // Organization and Roles
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null); 
   const [members, setMembers] = useState([]);
+  const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
   const [generatedInvite, setGeneratedInvite] = useState('');
 
@@ -55,7 +58,7 @@ export default function ChurchScheduleApp() {
   const [serviceSettings, setServiceSettings] = useState({
     sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
     sundayEvening: { enabled: true, label: 'Sunday Evening', time: '6:00 PM' },
-    wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:00 PM' },
+    wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
     communion: { enabled: true, label: 'Communion', time: '' }
   });
 
@@ -159,7 +162,10 @@ export default function ChurchScheduleApp() {
   };
 
   const generateInviteLink = async () => {
-    if (!orgId) return;
+    if (!orgId || !inviteEmail) {
+      alert("Please enter a recipient email address first.");
+      return;
+    }
     try {
       const inviteCode = Math.random().toString(36).substring(2, 10);
       await db.current.collection('invitations').doc(inviteCode).set({
@@ -170,7 +176,24 @@ export default function ChurchScheduleApp() {
       });
       const link = window.location.origin + '?invite=' + inviteCode;
       setGeneratedInvite(link);
-    } catch (err) { alert('Error generating invite: ' + err.message); }
+
+      const templateParams = {
+        to_email: inviteEmail,
+        church_name: churchName,
+        invite_link: link,
+        role: inviteRole
+      };
+
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        templateParams,
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+      );
+
+      alert('Invitation email successfully sent to ' + inviteEmail);
+      setInviteEmail('');
+    } catch (err) { alert('Error: ' + err.message); }
   };
 
   const handleDeleteAccount = async () => {
@@ -254,18 +277,6 @@ export default function ChurchScheduleApp() {
     return true;
   };
 
-  const shuffleArray = (array, seed) => {
-    const shuffled = [...array];
-    let currentIndex = shuffled.length;
-    const seededRandom = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-    while (currentIndex > 0) {
-      const randomIndex = Math.floor(seededRandom() * currentIndex);
-      currentIndex--;
-      [shuffled[currentIndex], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[currentIndex]];
-    }
-    return shuffled;
-  };
-
   const generateSchedule = () => {
     const days = getMonthDays(selectedMonth), newSchedule = { ...schedule };
     const seed = selectedMonth.getFullYear() * 12 + selectedMonth.getMonth();
@@ -320,6 +331,18 @@ export default function ChurchScheduleApp() {
     setSchedule(newSchedule); setView('calendar');
   };
 
+  const shuffleArray = (array, seed) => {
+    const shuffled = [...array];
+    let currentIndex = shuffled.length;
+    const seededRandom = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    while (currentIndex > 0) {
+      const randomIndex = Math.floor(seededRandom() * currentIndex);
+      currentIndex--;
+      [shuffled[currentIndex], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[currentIndex]];
+    }
+    return shuffled;
+  };
+
   const clearMonth = () => {
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
@@ -334,9 +357,8 @@ export default function ChurchScheduleApp() {
   const exportToPDF = () => {
     const printWindow = window.open('', '_blank');
     const monthName = selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const days = getMonthDays(selectedMonth);
-    const sundays = days.filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 0);
-    const wednesdays = days.filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 3);
+    const sundays = getMonthDays(selectedMonth).filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 0);
+    const wednesdays = getMonthDays(selectedMonth).filter(({ date, isCurrentMonth }) => isCurrentMonth && date.getDay() === 3);
     
     let sundaysHTML = '';
     sundays.forEach(({ date }) => {
@@ -421,7 +443,6 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      {/* HEADER: MOBILE WRAP FIX */}
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px' }}>
@@ -451,13 +472,11 @@ export default function ChurchScheduleApp() {
       </header>
 
       <main style={{ maxWidth: '1200px', margin: '24px auto', padding: '0 16px' }}>
-        {/* TABS: MOBILE SCROLL FIX */}
         <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <button className={'nav-tab ' + (view === 'speakers' ? 'active' : '')} onClick={() => setView('speakers')}>👤 Speakers</button>
           <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
         </nav>
 
-        {/* ACTIONS: MOBILE WRAP FIX */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
@@ -544,7 +563,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* MODALS: MOBILE RESPONSIVE WRAPPERS */}
+      {/* MODALS */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -592,19 +611,31 @@ export default function ChurchScheduleApp() {
               
               {userRole === 'owner' && (
                 <div style={{ background: '#f8f6f3', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
-                  <p style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Generate Invitation Link</p>
+                  <p style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Invite a New Member</p>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <select className="input-field" style={{ flex: '1 1 150px' }} value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
+                    <input 
+                      className="input-field" 
+                      placeholder="Recipient's email address" 
+                      style={{ flex: '2 1 200px' }}
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                    />
+                    <select 
+                      className="input-field" 
+                      style={{ flex: '1 1 120px' }}
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value)}
+                    >
                       <option value="viewer">Viewer</option>
                       <option value="standard">Standard</option>
                       <option value="admin">Admin</option>
                     </select>
-                    <button className="btn-primary" onClick={generateInviteLink} style={{ flex: '1 1 100px', padding: '0 16px', fontSize: '13px' }}>Generate</button>
+                    <button className="btn-primary" onClick={generateInviteLink} style={{ flex: '1 1 100px', padding: '0 16px', fontSize: '13px' }}>Send Invite</button>
                   </div>
                   {generatedInvite && (
-                    <div style={{ marginTop: '12px' }}>
-                      <p style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>Copy this link and send it to your team member:</p>
-                      <input className="input-field" readOnly value={generatedInvite} style={{ fontSize: '12px', background: '#fff' }} onClick={e => e.target.select()} />
+                    <div style={{ marginTop: '12px', padding: '8px', background: '#d1fae5', borderRadius: '8px' }}>
+                      <p style={{ fontSize: '11px', color: '#065f46', marginBottom: '4px' }}>✓ Email sent! You can also copy the link manually:</p>
+                      <input className="input-field" readOnly value={generatedInvite} style={{ fontSize: '11px', background: '#fff' }} onClick={e => e.target.select()} />
                     </div>
                   )}
                 </div>
