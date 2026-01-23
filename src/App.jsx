@@ -630,7 +630,7 @@ export default function ChurchScheduleApp() {
                       <option value="standard">Standard</option>
                       <option value="admin">Admin</option>
                     </select>
-                    <button className="btn-primary" onClick={generateInviteLink} style={{ flex: '1 1 100px', padding: '0 16px', fontSize: '13px' }}>Send Invite</button>
+                    <button className="btn-primary" onClick={generateInviteLink} style={{ flex: '1 1 100px', padding: '12 16px', fontSize: '13px' }}>Send Invite</button>
                   </div>
                   {generatedInvite && (
                     <div style={{ marginTop: '12px', padding: '8px', background: '#d1fae5', borderRadius: '8px' }}>
