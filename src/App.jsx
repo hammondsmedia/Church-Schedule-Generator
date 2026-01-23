@@ -1,3 +1,4 @@
+import logo from './assets/logo.svg';
 import React, { useState, useEffect, useRef } from 'react';
 import emailjs from '@emailjs/browser';
 
@@ -445,9 +446,12 @@ export default function ChurchScheduleApp() {
 
       <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-          <div style={{ flex: '1 1 300px' }}>
-            <h1 style={{ margin: 0, fontSize: 'clamp(24px, 5vw, 36px)' }}>✝ {churchName || 'Church Schedule'}</h1>
-            <p style={{ opacity: 0.8, fontSize: '14px', marginTop: '4px' }}>Manage speakers and generated schedules</p>
+          <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <img src={logo} alt="CCC App Logo" style={{ height: '64px', width: '64px', borderRadius: '12px' }} />
+            <div>
+              <h1 style={{ margin: 0, fontSize: 'clamp(24px, 5vw, 36px)', lineHeight: 1 }}>{churchName || 'Church of Christ Collab App'}</h1>
+              <p style={{ opacity: 0.8, fontSize: '14px', marginTop: '4px', marginBottom: 0 }}>Manage speakers and generated schedules</p>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
