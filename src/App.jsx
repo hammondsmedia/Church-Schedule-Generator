@@ -444,38 +444,52 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      <header style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)', padding: '32px 0', color: 'white' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-          <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <img src={logo} alt="CCC App Logo" style={{ height: '64px', width: '64px', borderRadius: '12px' }} />
-            <div>
-              <h1 style={{ margin: 0, fontSize: 'clamp(24px, 5vw, 36px)', lineHeight: 1 }}>{churchName || 'Church of Christ Collab App'}</h1>
-              <p style={{ opacity: 0.8, fontSize: '14px', marginTop: '4px', marginBottom: 0 }}>Manage speakers and generated schedules</p>
+      {/* HEADER: LIGHT MODE INVERSION */}
+<header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
+  <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+    <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <img 
+        src={logo} 
+        alt="CCC App Logo" 
+        style={{ height: '60px', width: 'auto', display: 'block' }} 
+      />
+      <div>
+        <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f' }}>
+          {churchName || 'Norman Church of Christ'}
+        </h1>
+        <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '2px', fontWeight: '500' }}>
+          Manage speakers and generated schedules
+        </p>
+      </div>
+    </div>
+    
+    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+      {['owner', 'admin'].includes(userRole) && (
+        <button className="btn-secondary" onClick={() => setShowSettings(true)}>
+          ⚙️ Settings
+        </button>
+      )}
+      <div style={{ position: 'relative' }} data-profile-menu>
+        <button className="btn-secondary" onClick={() => setShowProfile(!showProfile)}>
+          👤 {user.displayName || 'Account'}
+        </button>
+        {showProfile && (
+          <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', minWidth: '220px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
+            <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
+              <div style={{ fontWeight: '600' }}>{user.displayName || 'User'}</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>{user.email}</div>
+              <div style={{ fontSize: '11px', color: '#1e3a5f', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '4px' }}>Role: {userRole}</div>
             </div>
+            <button onClick={() => { setShowEditProfile(true); setShowProfile(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>Edit Profile & Congregation</button>
+            <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '14px' }}>Sign Out</button>
           </div>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
-            <div style={{ position: 'relative' }} data-profile-menu>
-              <button className="btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderColor: 'transparent' }} onClick={() => setShowProfile(!showProfile)}>
-                👤 {user.displayName || 'Account'}
-              </button>
-              {showProfile && (
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '220px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
-                  <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
-                    <div style={{ fontWeight: '600' }}>{user.displayName || 'User'}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>{user.email}</div>
-                    <div style={{ fontSize: '11px', color: '#1e3a5f', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '4px' }}>Role: {userRole}</div>
-                  </div>
-                  <button onClick={() => { setShowEditProfile(true); setShowProfile(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>Edit Profile & Congregation</button>
-                  <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '14px' }}>Sign Out</button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+        )}
+      </div>
+    </div>
+  </div>
+</header>
 
-      <main style={{ maxWidth: '1200px', margin: '24px auto', padding: '0 16px' }}>
+      <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
         <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <button className={'nav-tab ' + (view === 'speakers' ? 'active' : '')} onClick={() => setView('speakers')}>👤 Speakers</button>
           <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
