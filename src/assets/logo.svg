@@ -1,0 +1,16 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="blueGradient" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1e3a5f" />
+      <stop offset="1" stop-color="#2d4a6f" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#blueGradient)" />
+  <g transform="translate(106, 106) scale(0.6)">
+    <path d="M256,80c-97.2,0-176,78.8-176,176s78.8,176,176,176s176-78.8,176-176S353.2,80,256,80z M256,384c-70.7,0-128-57.3-128-128 s57.3-128,128-128s128,57.3,128,128S326.7,384,256,384z" fill="#ffffff" opacity="0.9"/>
+    <path d="M180,256c0-42,34-76,76-76s76,34,76,76s-34,76-76,76S180,298,180,256z M256,212c-24.3,0-44,19.7-44,44s19.7,44,44,44 s44-19.7,44-44S280.3,212,256,212z" fill="#ffffff"/>
+    <path d="M380,256c0-42,34-76,76-76s76,34,76,76s-34,76-76,76S380,298,380,256z M456,212c-24.3,0-44,19.7-44,44s19.7,44,44,44 s44-19.7,44-44S480.3,212,456,212z" fill="#ffffff"/>
+    <path d="M56,256c0-42,34-76,76-76s76,34,76,76s-34,76-76,76S56,298,56,256z M132,212c-24.3,0-44,19.7-44,44s19.7,44,44,44 s44-19.7,44-44S156.3,212,132,212z" fill="#ffffff"/>
+  </g>
+  <text x="256" y="420" font-family="sans-serif" font-size="64" font-weight="700" fill="#ffffff" text-anchor="middle">CCC APP</text>
+</svg>
