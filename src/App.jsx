@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import emailjs from '@emailjs/browser';
+import { Analytics } from '@vercel/analytics/react';
 
 // Firebase configuration
 const FIREBASE_CONFIG = {
@@ -720,6 +721,7 @@ export default function ChurchScheduleApp() {
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   );
 }
