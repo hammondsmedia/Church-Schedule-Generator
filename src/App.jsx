@@ -445,23 +445,44 @@ export default function ChurchScheduleApp() {
       `}</style>
 
       {/* HEADER: LIGHT MODE INVERSION */}
-<header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
-  <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-    <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-      <img 
-        src={logo} 
-        alt="CCC App Logo" 
-        style={{ height: '60px', width: 'auto', display: 'block' }} 
-      />
-      <div>
-        <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f' }}>
-          {churchName || 'Norman Church of Christ'}
-        </h1>
-        <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '2px', fontWeight: '500' }}>
-          Manage speakers and generated schedules
-        </p>
-      </div>
-    </div>
+<div style={{ 
+  flex: '1 1 300px', 
+  display: 'flex', 
+  alignItems: 'flex-end', // Aligns the bottom of the logo with the bottom of the text
+  gap: '24px',            // Increased gap between logo and text
+  paddingBottom: '4px'    // Fine-tunes the baseline alignment
+}}>
+  <img 
+    src={logo} 
+    alt="CCC App Logo" 
+    style={{ 
+      height: '80px',     // Slightly larger to make the text inside the logo legible
+      width: 'auto', 
+      display: 'block',
+      marginBottom: '-4px' // Pulls the logo down slightly to hit the baseline
+    }} 
+  />
+  <div style={{ paddingBottom: '2px' }}>
+    <h1 style={{ 
+      margin: 0, 
+      fontSize: 'clamp(22px, 5vw, 32px)', 
+      fontWeight: '700', 
+      color: '#1e3a5f',
+      lineHeight: '1' 
+    }}>
+      {churchName || 'Norman Church of Christ'}
+    </h1>
+    <p style={{ 
+      opacity: 0.7, 
+      fontSize: '14px', 
+      marginTop: '6px', 
+      fontWeight: '500',
+      marginBottom: 0 
+    }}>
+      Manage speakers and generated schedules
+    </p>
+  </div>
+</div>
     
     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
       {['owner', 'admin'].includes(userRole) && (
