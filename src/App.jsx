@@ -62,7 +62,7 @@ export default function ChurchScheduleApp() {
     wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
     communion: { enabled: true, label: 'Communion', time: '' }
   });
-  const [transferTarget, setTransferTarget] = useState(null);
+  const [transferTarget, setTransferTarget] = useState(null); // Tracks the user being considered for transfer
 
   useEffect(() => {
     const loadFirebase = async () => {
@@ -163,25 +163,36 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
-  // ADMIN FUNCTIONS: Fixed Scope (Broken Item #1)
+  // ADMIN FUNCTIONS: Moved to correct scope
   const updateMemberRole = async (targetUserId, newRole) => {
     try {
-      await db.current.collection('users').doc(targetUserId).update({ role: newRole });
+      await db.current.collection('users').doc(targetUserId).update({
+        role: newRole
+      });
       alert(`Role updated to ${newRole}`);
       fetchMembers(orgId);
-    } catch (err) { alert("Error updating role: " + err.message); }
+    } catch (err) {
+      alert("Error updating role: " + err.message);
+    }
   };
   
   const removeMember = async (targetUserId, targetUserName) => {
     if (!window.confirm(`Are you sure you want to remove ${targetUserName}?`)) return;
     try {
-      await db.current.collection('users').doc(targetUserId).update({ orgId: null, role: 'viewer' });
+      await db.current.collection('users').doc(targetUserId).update({
+        orgId: null,
+        role: 'viewer'
+      });
       alert("Member removed successfully.");
       fetchMembers(orgId);
-    } catch (err) { alert("Error removing member: " + err.message); }
+    } catch (err) {
+      alert("Error removing member: " + err.message);
+    }
   };
   
   const transferOwnership = async (newOwnerId, newOwnerName) => {
+    const msg = `CRITICAL: You are about to transfer ownership to ${newOwnerName}. You will become an Admin and lose the ability to transfer ownership back. Proceed?`;
+    if (!window.confirm(msg)) return;
     try {
       const batch = db.current.batch();
       batch.update(db.current.collection('users').doc(user.uid), { role: 'admin' });
@@ -189,7 +200,9 @@ export default function ChurchScheduleApp() {
       await batch.commit();
       alert("Ownership transferred successfully.");
       window.location.reload();
-    } catch (err) { alert("Transfer failed: " + err.message); }
+    } catch (err) {
+      alert("Transfer failed: " + err.message);
+    }
   };
 
   const generateInviteLink = async () => {
@@ -610,7 +623,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* SETTINGS MODAL: Fixed JSX Nesting (Broken Item #2) */}
+      {/* SETTINGS MODAL: FIXED NESTING */}
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -670,11 +683,11 @@ export default function ChurchScheduleApp() {
                     </div>
                   </div>
                 ))}
-              </div> {/* Close members list div */}
-            </div> {/* Close org members section div */}
+              </div>
+            </div>
             <button className="btn-primary" style={{ width: '100%', marginTop: '24px' }} onClick={() => setShowSettings(false)}>Close Settings</button>
-          </div> {/* Close card div */}
-        </div> {/* Close modal overlay div */}
+          </div>
+        </div>
       )}
 
       {/* EDIT PROFILE MODAL */}
