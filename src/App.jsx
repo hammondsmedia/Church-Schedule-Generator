@@ -500,14 +500,18 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      {/* HEADER SECTION: UPDATED TO ICON-ONLY */}
+      {/* UPDATED HEADER: BRIGHT BRANDING */}
       <header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <img src={logoIcon} alt="Logo Icon" style={{ height: '60px', width: 'auto', display: 'block' }} />
+            <img src={logoIcon} alt="Logo Icon" style={{ height: '52px', width: 'auto', display: 'block' }} />
             <div>
-              <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f', lineHeight: '1.1' }}>{churchName || 'Norman Church of Christ'}</h1>
-              <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '4px', fontWeight: '500', marginBottom: 0 }}>Manage speakers and generated schedules</p>
+              <h1 style={{ margin: 0, fontSize: 'clamp(20px, 4vw, 28px)', fontWeight: '800', color: '#1e3a5f', lineHeight: '1.1' }}>
+                Church of Christ Collab App
+              </h1>
+              <p style={{ opacity: 0.6, fontSize: '13px', marginTop: '2px', fontWeight: '500', marginBottom: 0 }}>
+                Schedule generation and collaboration tool
+              </p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -545,6 +549,18 @@ export default function ChurchScheduleApp() {
       </header>
 
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
+        {/* NEW: DYNAMIC CHURCH NAME ABOVE TABS */}
+        <h2 style={{ 
+          color: '#1e3a5f', 
+          marginBottom: '20px', 
+          fontWeight: '700', 
+          fontSize: '24px',
+          borderLeft: '4px solid #FF8C37',
+          paddingLeft: '16px'
+        }}>
+          {churchName || 'Norman Church of Christ'}
+        </h2>
+
         <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto' }}>
           <button className={'nav-tab ' + (view === 'speakers' ? 'active' : '')} onClick={() => setView('speakers')}>👤 Speakers</button>
           <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
@@ -632,7 +648,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* SETTINGS MODAL */}
+      {/* MODALS */}
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
