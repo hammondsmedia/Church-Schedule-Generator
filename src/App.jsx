@@ -1,4 +1,4 @@
-import logo from './assets/logo.svg';
+import logo from './assets/logo-icon.svg';
 import React, { useState, useEffect, useRef } from 'react';
 import emailjs from '@emailjs/browser';
 
@@ -500,7 +500,7 @@ export default function ChurchScheduleApp() {
       <header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'flex-end', gap: '24px', paddingBottom: '4px' }}>
-            <img src={logo} alt="CCC App Logo" style={{ height: '80px', width: 'auto', display: 'block', marginBottom: '-4px' }} />
+            <img src={logo-icon} alt="CCC App Logo" style={{ height: '80px', width: 'auto', display: 'block', marginBottom: '-4px' }} />
             <div style={{ paddingBottom: '2px' }}>
               <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f', lineHeight: '1' }}>{churchName || 'Norman Church of Christ'}</h1>
               <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '6px', fontWeight: '500', marginBottom: 0 }}>Manage speakers and generated schedules</p>
