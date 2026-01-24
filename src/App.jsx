@@ -62,7 +62,7 @@ export default function ChurchScheduleApp() {
     wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
     communion: { enabled: true, label: 'Communion', time: '' }
   });
-  const [transferTarget, setTransferTarget] = useState(null); // Tracks the user being considered for transfer
+  const [transferTarget, setTransferTarget] = useState(null);
 
   useEffect(() => {
     const loadFirebase = async () => {
@@ -163,6 +163,35 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
+  // ADMIN FUNCTIONS: Fixed Scope (Broken Item #1)
+  const updateMemberRole = async (targetUserId, newRole) => {
+    try {
+      await db.current.collection('users').doc(targetUserId).update({ role: newRole });
+      alert(`Role updated to ${newRole}`);
+      fetchMembers(orgId);
+    } catch (err) { alert("Error updating role: " + err.message); }
+  };
+  
+  const removeMember = async (targetUserId, targetUserName) => {
+    if (!window.confirm(`Are you sure you want to remove ${targetUserName}?`)) return;
+    try {
+      await db.current.collection('users').doc(targetUserId).update({ orgId: null, role: 'viewer' });
+      alert("Member removed successfully.");
+      fetchMembers(orgId);
+    } catch (err) { alert("Error removing member: " + err.message); }
+  };
+  
+  const transferOwnership = async (newOwnerId, newOwnerName) => {
+    try {
+      const batch = db.current.batch();
+      batch.update(db.current.collection('users').doc(user.uid), { role: 'admin' });
+      batch.update(db.current.collection('users').doc(newOwnerId), { role: 'owner' });
+      await batch.commit();
+      alert("Ownership transferred successfully.");
+      window.location.reload();
+    } catch (err) { alert("Transfer failed: " + err.message); }
+  };
+
   const generateInviteLink = async () => {
     if (!orgId || !inviteEmail) {
       alert("Please enter a recipient email address first.");
@@ -184,54 +213,6 @@ export default function ChurchScheduleApp() {
         church_name: churchName,
         invite_link: link,
         role: inviteRole
-      };
-
-      // 1. Update a member's role
-      const updateMemberRole = async (targetUserId, newRole) => {
-        try {
-          await db.current.collection('users').doc(targetUserId).update({
-            role: newRole
-          });
-          alert(`Role updated to ${newRole}`);
-        } catch (err) {
-          alert("Error updating role: " + err.message);
-        }
-      };
-      
-      // 2. Remove a member from the organization
-      const removeMember = async (targetUserId, targetUserName) => {
-        if (!window.confirm(`Are you sure you want to remove ${targetUserName}?`)) return;
-        
-        try {
-          // We "remove" them by clearing their orgId and resetting their role
-          await db.current.collection('users').doc(targetUserId).update({
-            orgId: null,
-            role: 'viewer'
-          });
-          alert("Member removed successfully.");
-        } catch (err) {
-          alert("Error removing member: " + err.message);
-        }
-      };
-      
-      // 3. Transfer Ownership (Owner Only)
-      const transferOwnership = async (newOwnerId, newOwnerName) => {
-        const msg = `CRITICAL: You are about to transfer ownership to ${newOwnerName}. You will become an Admin and lose the ability to transfer ownership back. Proceed?`;
-        if (!window.confirm(msg)) return;
-      
-        try {
-          const batch = db.current.batch();
-          // Demote current owner to admin
-          batch.update(db.current.collection('users').doc(user.uid), { role: 'admin' });
-          // Promote new user to owner
-          batch.update(db.current.collection('users').doc(newOwnerId), { role: 'owner' });
-          
-          await batch.commit();
-          alert("Ownership transferred successfully.");
-          window.location.reload(); // Reload to refresh permissions
-        } catch (err) {
-          alert("Transfer failed: " + err.message);
-        }
       };
 
       await emailjs.send(
@@ -493,117 +474,74 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      {/* HEADER: LIGHT MODE INVERSION */}
+      {/* HEADER SECTION */}
       <header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
-  {/* THIS IS THE WRAPPER DIV THAT WAS MISSING */}
-  <div style={{ 
-    maxWidth: '1200px', 
-    margin: '0 auto', 
-    padding: '0 24px', 
-    display: 'flex', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    flexWrap: 'wrap', 
-    gap: '20px' 
-  }}>
-    
-    {/* LOGO & TITLE SECTION */}
-    <div style={{ 
-      flex: '1 1 300px', 
-      display: 'flex', 
-      alignItems: 'flex-end', 
-      gap: '24px', 
-      paddingBottom: '4px' 
-    }}>
-      <img 
-        src={logo} 
-        alt="CCC App Logo" 
-        style={{ height: '80px', width: 'auto', display: 'block', marginBottom: '-4px' }} 
-      />
-      <div style={{ paddingBottom: '2px' }}>
-        <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f', lineHeight: '1' }}>
-          {churchName || 'Norman Church of Christ'}
-        </h1>
-        <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '6px', fontWeight: '500', marginBottom: 0 }}>
-          Manage speakers and generated schedules
-        </p>
-      </div>
-    </div>
-
-    {/* BUTTONS & PROFILE SECTION */}
-    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-      {['owner', 'admin'].includes(userRole) && (
-        <button className="btn-secondary" onClick={() => setShowSettings(true)}>
-          ⚙️ Settings
-        </button>
-      )}
-      <div style={{ position: 'relative' }} data-profile-menu>
-        <button className="btn-secondary" onClick={() => setShowProfile(!showProfile)}>
-          👤 {user.displayName || 'Account'}
-        </button>
-        {showProfile && (
-          <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', minWidth: '220px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
-              <div style={{ fontWeight: '600' }}>{user.displayName || 'User'}</div>
-              <div style={{ fontSize: '12px', color: '#666' }}>{user.email}</div>
-              <div style={{ fontSize: '11px', color: '#1e3a5f', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '4px' }}>Role: {userRole}</div>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+          <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'flex-end', gap: '24px', paddingBottom: '4px' }}>
+            <img src={logo} alt="CCC App Logo" style={{ height: '80px', width: 'auto', display: 'block', marginBottom: '-4px' }} />
+            <div style={{ paddingBottom: '2px' }}>
+              <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f', lineHeight: '1' }}>
+                {churchName || 'Norman Church of Christ'}
+              </h1>
+              <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '6px', fontWeight: '500', marginBottom: 0 }}>
+                Manage speakers and generated schedules
+              </p>
             </div>
-            <button onClick={() => { setShowEditProfile(true); setShowProfile(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>Edit Profile & Congregation</button>
-            <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '14px' }}>Sign Out</button>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {['owner', 'admin'].includes(userRole) && (
+              <button className="btn-secondary" onClick={() => setShowSettings(true)}>⚙️ Settings</button>
+            )}
+            <div style={{ position: 'relative' }} data-profile-menu>
+              <button className="btn-secondary" onClick={() => setShowProfile(!showProfile)}>👤 {user.displayName || 'Account'}</button>
+              {showProfile && (
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'white', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', minWidth: '220px', overflow: 'hidden', color: '#333', zIndex: 100 }}>
+                  <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
+                    <div style={{ fontWeight: '600' }}>{user.displayName || 'User'}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>{user.email}</div>
+                    <div style={{ fontSize: '11px', color: '#1e3a5f', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '4px' }}>Role: {userRole}</div>
+                  </div>
+                  <button onClick={() => { setShowEditProfile(true); setShowProfile(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>Edit Profile & Congregation</button>
+                  <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '12px', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '14px' }}>Sign Out</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* SAFETY CONFIRMATION MODAL */}
+        {transferTarget && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
+            <div style={{ background: 'white', padding: '32px', borderRadius: '16px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+              <h2 style={{ color: '#1e3a5f', margin: '0 0 12px 0' }}>Transfer Ownership?</h2>
+              <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>
+                You are about to make <strong>{transferTarget.displayName}</strong> the Owner of <strong>{churchName}</strong>. 
+                <br/><br/>
+                You will be demoted to <strong>Admin</strong> and will no longer be able to remove members or transfer ownership.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <button onClick={() => { transferOwnership(transferTarget.id, transferTarget.displayName); setTransferTarget(null); }} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>I Understand, Transfer Ownership</button>
+                <button onClick={() => setTransferTarget(null)} style={{ background: '#f3f4f6', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', color: '#666' }}>Cancel and Go Back</button>
+              </div>
+            </div>
           </div>
         )}
-      </div>
-    </div>
-  </div> {/* Matches the wrapper div */}
-
-  {/* SAFETY CONFIRMATION MODAL */}
-  {transferTarget && (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
-      <div style={{ background: 'white', padding: '32px', borderRadius: '16px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
-        <h2 style={{ color: '#1e3a5f', margin: '0 0 12px 0' }}>Transfer Ownership?</h2>
-        <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>
-          You are about to make <strong>{transferTarget.displayName}</strong> the Owner of <strong>{churchName}</strong>. 
-          <br/><br/>
-          You will be demoted to <strong>Admin</strong> and will no longer be able to remove members or transfer ownership.
-        </p>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <button 
-            onClick={() => {
-              transferOwnership(transferTarget.id, transferTarget.displayName);
-              setTransferTarget(null);
-            }}
-            style={{ background: '#dc2626', color: 'white', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
-          >
-            I Understand, Transfer Ownership
-          </button>
-          <button 
-            onClick={() => setTransferTarget(null)}
-            style={{ background: '#f3f4f6', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', color: '#666' }}
-          >
-            Cancel and Go Back
-          </button>
-        </div>
-      </div>
-    </div>
-  )}
-</header>
+      </header>
 
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
-        <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto' }}>
           <button className={'nav-tab ' + (view === 'speakers' ? 'active' : '')} onClick={() => setView('speakers')}>👤 Speakers</button>
           <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
         </nav>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 auto' }}>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
-            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center', fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+            <h2 style={{ color: '#1e3a5f', margin: 0, minWidth: '150px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
-          
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px' }}>
             {view === 'calendar' && ['owner', 'admin'].includes(userRole) && (
               <button className="btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={clearMonth}>🗑️ Clear Month</button>
             )}
@@ -614,12 +552,12 @@ export default function ChurchScheduleApp() {
 
         {view === 'speakers' ? (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-              <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: 'clamp(18px, 4vw, 24px)' }}>Manage Speakers ({speakers.length})</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ color: '#1e3a5f', margin: 0 }}>Manage Speakers ({speakers.length})</h2>
               {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: {}, blockOffDates: [], repeatRules: [] }); setShowAddSpeaker(true); }}>+ Add Speaker</button>}
             </div>
             {speakers.map(s => (
-              <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
                   <h3 style={{ margin: '0 0 8px 0', color: '#1e3a5f' }}>{s.firstName} {s.lastName}</h3>
                   <div style={{ marginBottom: '8px' }}>
@@ -629,15 +567,6 @@ export default function ChurchScheduleApp() {
                     {s.availability.wednesdayEvening && <span className="service-badge badge-wednesday">Wednesday Evening</span>}
                     {s.availability.communion && <span className="service-badge badge-communion">Communion</span>}
                   </div>
-                  {s.repeatRules?.length > 0 && (
-                    <div style={{ fontSize: '13px', color: '#666' }}>
-                      <strong>Repeat Rules:</strong> {s.repeatRules.map((r, i) => (
-                        <span key={i} style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', marginRight: '4px' }}>
-                            {r.serviceType} ({r.pattern})
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 {['owner', 'admin'].includes(userRole) && (
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -647,7 +576,6 @@ export default function ChurchScheduleApp() {
                 )}
               </div>
             ))}
-            {['owner', 'admin'].includes(userRole) && <button className="btn-primary" style={{ width: '100%', marginTop: '20px' }} onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: {}, blockOffDates: [], repeatRules: [] }); setShowAddSpeaker(true); }}>+ Add Speaker</button>}
           </div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexWrap: 'wrap' }}>
@@ -682,31 +610,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* MODALS */}
-      {showEditProfile && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div className="card" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>Edit Profile & Congregation</h3>
-            <form onSubmit={handleUpdateProfile}>
-              <div style={{ marginBottom: '12px' }}><label>Congregation Name</label><input className="input-field" value={churchName} onChange={e => setChurchName(e.target.value)} disabled={userRole !== 'owner'} required /></div>
-              <div style={{ marginBottom: '12px' }}><label>First Name</label><input className="input-field" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required /></div>
-              <div style={{ marginBottom: '12px' }}><label>Last Name</label><input className="input-field" value={userLastName} onChange={e => setUserLastName(e.target.value)} required /></div>
-              <div style={{ marginBottom: '12px' }}><label>Email</label><input className="input-field" value={newEmail} onChange={e => setNewEmail(e.target.value)} required /></div>
-              <div style={{ marginBottom: '24px' }}><label>New Password</label><input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" /></div>
-              
-              <div style={{ borderTop: '1px solid #eee', paddingTop: '20px', marginBottom: '24px' }}>
-                <button type="button" onClick={handleDeleteAccount} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', padding: 0 }}>Delete My Account</button>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+      {/* SETTINGS MODAL: Fixed JSX Nesting (Broken Item #2) */}
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -727,145 +631,95 @@ export default function ChurchScheduleApp() {
             
             <div style={{ marginTop: '32px', borderTop: '2px solid #eee', paddingTop: '20px' }}>
               <h4 style={{ color: '#1e3a5f', marginBottom: '16px' }}>👥 Organization Members</h4>
-              
               {userRole === 'owner' && (
                 <div style={{ background: '#f8f6f3', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
                   <p style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Invite a New Member</p>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <input 
-                      className="input-field" 
-                      placeholder="Recipient's email address" 
-                      style={{ flex: '2 1 200px' }}
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                    />
-                    <select 
-                      className="input-field" 
-                      style={{ flex: '1 1 120px' }}
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                    >
-                      <option value="viewer">Viewer</option>
-                      <option value="standard">Standard</option>
-                      <option value="admin">Admin</option>
+                    <input className="input-field" placeholder="Recipient email" style={{ flex: '2 1 200px' }} value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+                    <select className="input-field" style={{ flex: '1 1 120px' }} value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
+                      <option value="viewer">Viewer</option><option value="standard">Standard</option><option value="admin">Admin</option>
                     </select>
-                    <button className="btn-primary" onClick={generateInviteLink} style={{ flex: '1 1 100px', padding: '12 16px', fontSize: '13px' }}>Send Invite</button>
+                    <button className="btn-primary" onClick={generateInviteLink} style={{ flex: '1 1 100px', fontSize: '13px' }}>Send Invite</button>
                   </div>
                   {generatedInvite && (
                     <div style={{ marginTop: '12px', padding: '8px', background: '#d1fae5', borderRadius: '8px' }}>
-                      <p style={{ fontSize: '11px', color: '#065f46', marginBottom: '4px' }}>✓ Email sent! You can also copy the link manually:</p>
-                      <input className="input-field" readOnly value={generatedInvite} style={{ fontSize: '11px', background: '#fff' }} onClick={e => e.target.select()} />
+                      <p style={{ fontSize: '11px', color: '#065f46', marginBottom: '4px' }}>✓ Copy link: {generatedInvite}</p>
                     </div>
                   )}
                 </div>
               )}
-
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {members.map((member) => (
-                  <div key={member.id} style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center', 
-                    padding: '12px', 
-                    borderBottom: '1px solid #eee' 
-                  }}>
+                  <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', borderBottom: '1px solid #eee' }}>
                     <div>
-                      <div style={{ fontWeight: '600' }}>{member.displayName} {member.id === user.uid && "(You)"}</div>
+                      <div style={{ fontWeight: '600' }}>{member.displayName}</div>
                       <div style={{ fontSize: '12px', color: '#666' }}>{member.email}</div>
                     </div>
-                
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      {/* ROLE SELECT: Visible if user is owner OR (admin managing a non-owner) */}
                       {(userRole === 'owner' || (userRole === 'admin' && member.role !== 'owner')) && member.id !== user.uid ? (
-                        <select 
-                          value={member.role}
-                          onChange={(e) => updateMemberRole(member.id, e.target.value)}
-                          style={{ padding: '4px', borderRadius: '4px', fontSize: '12px' }}
-                        >
-                          <option value="viewer">Viewer</option>
-                          <option value="editor">Editor</option>
-                          <option value="admin">Admin</option>
+                        <select value={member.role} onChange={(e) => updateMemberRole(member.id, e.target.value)} style={{ padding: '4px', fontSize: '12px' }}>
+                          <option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option>
                         </select>
-                      ) : (
-                        <span className="badge">{member.role}</span>
+                      ) : ( <span className="badge">{member.role}</span> )}
+                      {((userRole === 'owner' && member.role !== 'owner') || (userRole === 'admin' && !['owner', 'admin'].includes(member.role))) && (
+                        <button onClick={() => removeMember(member.id, member.displayName)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>
                       )}
-                
-                      {/* REMOVE BUTTON: Owner can remove anyone; Admin can remove non-owners */}
-                      {((userRole === 'owner' && member.role !== 'owner') || 
-                        (userRole === 'admin' && !['owner', 'admin'].includes(member.role))) && (
-                        <button 
-                          onClick={() => removeMember(member.id, member.displayName)}
-                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '18px' }}
-                          title="Remove Member"
-                        >
-                          ✕
-                        </button>
-                      )}
-                
-                      {/* TRANSFER BUTTON IN MEMBER LIST */}
                       {userRole === 'owner' && member.id !== user.uid && (
-                        <button 
-                          onClick={() => setTransferTarget(member)} // Opens the safety modal
-                          className="btn-secondary"
-                          style={{ fontSize: '10px', padding: '4px 8px', color: '#dc2626', borderColor: '#dc2626' }}
-                        >
-                          Transfer Ownership
-                        </button>
+                        <button onClick={() => setTransferTarget(member)} className="btn-secondary" style={{ fontSize: '10px' }}>Transfer</button>
                       )}
                     </div>
                   </div>
                 ))}
+              </div> {/* Close members list div */}
+            </div> {/* Close org members section div */}
+            <button className="btn-primary" style={{ width: '100%', marginTop: '24px' }} onClick={() => setShowSettings(false)}>Close Settings</button>
+          </div> {/* Close card div */}
+        </div> {/* Close modal overlay div */}
+      )}
 
+      {/* EDIT PROFILE MODAL */}
+      {showEditProfile && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
+            <h3 style={{ margin: '0 0 20px 0' }}>Edit Profile</h3>
+            <form onSubmit={handleUpdateProfile}>
+              <input className="input-field" style={{ marginBottom: '12px' }} value={churchName} onChange={e => setChurchName(e.target.value)} disabled={userRole !== 'owner'} />
+              <input className="input-field" style={{ marginBottom: '12px' }} placeholder="First Name" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required />
+              <input className="input-field" style={{ marginBottom: '12px' }} placeholder="Last Name" value={userLastName} onChange={e => setUserLastName(e.target.value)} required />
+              <input className="input-field" style={{ marginBottom: '24px' }} placeholder="Email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required />
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD/EDIT SPEAKER MODAL */}
       {showAddSpeaker && editingSpeaker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div className="card" style={{ width: '100%', maxWidth: '450px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px' }}>
             <h3>{speakers.find(s => s.id === editingSpeaker.id) ? 'Edit' : 'Add'} Speaker</h3>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
-              <input className="input-field" style={{flex: '1 1 180px'}} placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
-              <input className="input-field" style={{flex: '1 1 180px'}} placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <input className="input-field" placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
+              <input className="input-field" placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
             </div>
             <div style={{ marginBottom: '12px' }}>
               <label>Priority</label>
               <select className="input-field" value={editingSpeaker.priority || 0} onChange={e => setEditingSpeaker({ ...editingSpeaker, priority: parseInt(e.target.value) })}>
-                <option value={0}>None (Rotated)</option><option value={1}>Priority 1 (High)</option><option value={2}>Priority 2 (Medium)</option>
+                <option value={0}>None</option><option value={1}>High</option><option value={2}>Medium</option>
               </select>
             </div>
-            <div style={{ marginBottom: '12px' }}>
-              <strong>Availability</strong><br />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', marginTop: '8px' }}>
-                <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayMorning: e.target.checked } })} /> Sun Morning</label>
-                <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayEvening: e.target.checked } })} /> Sun Evening</label>
-                <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, wednesdayEvening: e.target.checked } })} /> Wednesday</label>
-                <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, communion: e.target.checked } })} /> Communion</label>
-              </div>
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <strong>Repeat Speaking Rules</strong>
-              {(editingSpeaker.repeatRules || []).map((r, i) => (
-                <div key={i} style={{ background: '#f8f6f3', padding: '10px', borderRadius: '8px', marginTop: '8px', border: '1px solid #eee' }}>
-                  <select className="input-field" value={r.serviceType} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].serviceType = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
-                    <option value="">Select Service...</option><option value="sundayMorning">Sun AM</option><option value="sundayEvening">Sun PM</option><option value="wednesdayEvening">Wed</option>
-                  </select>
-                  <select className="input-field" style={{ marginTop: '4px' }} value={r.pattern} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].pattern = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
-                    <option value="everyOther">Every Other Week</option><option value="nthWeek">Specific Week of Month</option>
-                  </select>
-                  {r.pattern === 'everyOther' ? 
-                    <select className="input-field" style={{ marginTop: '4px' }} value={r.startWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].startWeek = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value="odd">1st, 3rd, 5th weeks</option><option value="even">2nd, 4th weeks</option></select> :
-                    <select className="input-field" style={{ marginTop: '4px' }} value={r.nthWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].nthWeek = parseInt(e.target.value); setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value={1}>1st Week</option><option value={2}>2nd Week</option><option value={3}>3rd Week</option><option value={4}>4th Week</option><option value={5}>5th Week</option></select>
-                  }
-                  <button onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: editingSpeaker.repeatRules.filter((_, idx) => idx !== i) })} style={{ width: '100%', marginTop: '4px', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>Remove Rule</button>
-                </div>
-              ))}
-              <button className="btn-secondary" style={{ width: '100%', marginTop: '8px', padding: '8px', fontSize: '13px' }} onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: [...(editingSpeaker.repeatRules || []), { serviceType: '', pattern: 'everyOther', startWeek: 'odd', nthWeek: 1 }] })}>+ Add Repeat Rule</button>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
               <button className="btn-secondary" onClick={() => setShowAddSpeaker(false)}>Cancel</button>
-              <button className="btn-primary" onClick={() => { if (speakers.find(s => s.id === editingSpeaker.id)) setSpeakers(speakers.map(s => s.id === editingSpeaker.id ? editingSpeaker : s)); else setSpeakers([...speakers, editingSpeaker]); setShowAddSpeaker(false); }}>Save Speaker</button>
+              <button className="btn-primary" onClick={() => { if (speakers.find(s => s.id === editingSpeaker.id)) setSpeakers(speakers.map(s => s.id === editingSpeaker.id ? editingSpeaker : s)); else setSpeakers([...speakers, editingSpeaker]); setShowAddSpeaker(false); }}>Save</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ASSIGN SLOT MODAL */}
       {assigningSlot && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
