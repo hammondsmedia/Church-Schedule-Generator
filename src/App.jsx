@@ -182,7 +182,6 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
-  // ADMIN FUNCTIONS: Moved to top level
   const updateMemberRole = async (targetUserId, newRole) => {
     try {
       await db.current.collection('users').doc(targetUserId).update({ role: newRole });
@@ -455,7 +454,6 @@ export default function ChurchScheduleApp() {
 
   if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Loading...</div>;
 
-  // LOGIN & SIGN UP SCREEN
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <style>{`* { box-sizing: border-box; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; }`}</style>
@@ -496,6 +494,7 @@ export default function ChurchScheduleApp() {
         .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
         .service-badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin: 0 8px 4px 0; display: inline-block; }
+        .badge-priority { background: #fee2e2; color: #dc2626; }
         .calendar-bar { padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: grab; display: block; width: 100%; text-align: left; border: none; }
         .bar-empty { background: #e5e7eb; color: #666; cursor: pointer; }
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
@@ -571,20 +570,30 @@ export default function ChurchScheduleApp() {
               {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: {}, blockOffDates: [], repeatRules: [] }); setShowAddSpeaker(true); }}>+ Add Speaker</button>}
             </div>
             {speakers.map(s => (
-              <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
                   <h3 style={{ margin: '0 0 8px 0', color: '#1e3a5f' }}>{s.firstName} {s.lastName}</h3>
                   <div style={{ marginBottom: '8px' }}>
-                    {s.availability.sundayMorning && <span className="service-badge">Sunday Morning</span>}
-                    {s.availability.sundayEvening && <span className="service-badge">Sunday Evening</span>}
-                    {s.availability.wednesdayEvening && <span className="service-badge">Wednesday Evening</span>}
-                    {s.availability.communion && <span className="service-badge">Communion</span>}
+                    {s.priority > 0 && <span className="service-badge badge-priority">★ Priority {s.priority}</span>}
+                    {s.availability.sundayMorning && <span className="service-badge" style={{ background: '#dbeafe', color: '#1e40af' }}>Sunday Morning</span>}
+                    {s.availability.sundayEvening && <span className="service-badge" style={{ background: '#ede9fe', color: '#5b21b6' }}>Sunday Evening</span>}
+                    {s.availability.wednesdayEvening && <span className="service-badge" style={{ background: '#d1fae5', color: '#065f46' }}>Wednesday Evening</span>}
+                    {s.availability.communion && <span className="service-badge" style={{ background: '#fce7f3', color: '#be185d' }}>Communion</span>}
                   </div>
+                  {s.repeatRules?.length > 0 && (
+                    <div style={{ fontSize: '13px', color: '#666' }}>
+                      <strong>Repeat Rules:</strong> {s.repeatRules.map((r, i) => (
+                        <span key={i} style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', marginRight: '4px' }}>
+                          {r.serviceType} ({r.pattern})
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {['owner', 'admin'].includes(userRole) && (
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button className="btn-secondary" onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
-                    <button style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', padding: '10px', cursor: 'pointer' }} onClick={() => setSpeakers(speakers.filter(sp => sp.id !== s.id))}>Remove</button>
+                    <button className="btn-secondary" style={{ padding: '8px 12px' }} onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
+                    <button style={{ padding: '8px 12px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer' }} onClick={() => setSpeakers(speakers.filter(sp => sp.id !== s.id))}>Remove</button>
                   </div>
                 )}
               </div>
@@ -600,9 +609,9 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    {serviceSettings.sundayMorning.enabled && <button className={'calendar-bar ' + (sm ? '' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayMorning', date: k, serviceType: 'sundayMorning' })}>{serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</button>}
-                    {serviceSettings.communion.enabled && <button className={'calendar-bar ' + (c ? '' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-communion', date: k, serviceType: 'communion' })}>Communion: {c ? getSpeakerName(c.speakerId) : '+ Assign'}</button>}
-                    {serviceSettings.sundayEvening.enabled && <button className={'calendar-bar ' + (se ? '' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayEvening', date: k, serviceType: 'sundayEvening' })}>{serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.sundayMorning.enabled && <button className={'calendar-bar ' + (sm ? 'badge-morning' : 'bar-empty')} style={sm ? {background:'#dbeafe', color:'#1e40af'} : {}} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayMorning', date: k, serviceType: 'sundayMorning' })}>{serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.communion.enabled && <button className={'calendar-bar ' + (c ? 'badge-communion' : 'bar-empty')} style={c ? {background:'#fce7f3', color:'#be185d'} : {}} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-communion', date: k, serviceType: 'communion' })}>Communion: {c ? getSpeakerName(c.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.sundayEvening.enabled && <button className={'calendar-bar ' + (se ? 'badge-evening' : 'bar-empty')} style={se ? {background:'#ede9fe', color:'#5b21b6'} : {}} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayEvening', date: k, serviceType: 'sundayEvening' })}>{serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}</button>}
                   </div>
                 );
               })}
@@ -614,7 +623,7 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    <button className={'calendar-bar ' + (w ? '' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
+                    <button className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} style={w ? {background:'#d1fae5', color:'#065f46'} : {}} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
                   </div>
                 );
               })}
@@ -683,6 +692,7 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
+      {/* EDIT PROFILE MODAL */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
@@ -701,17 +711,52 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
+      {/* RESTORED: ADD/EDIT SPEAKER MODAL */}
       {showAddSpeaker && editingSpeaker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div className="card" style={{ width: '100%', maxWidth: '450px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3>{speakers.find(s => s.id === editingSpeaker.id) ? 'Edit' : 'Add'} Speaker</h3>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-              <input className="input-field" placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
-              <input className="input-field" placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+              <input className="input-field" style={{flex: '1 1 180px'}} placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
+              <input className="input-field" style={{flex: '1 1 180px'}} placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
             </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <div style={{ marginBottom: '12px' }}>
+              <label>Priority</label>
+              <select className="input-field" value={editingSpeaker.priority || 0} onChange={e => setEditingSpeaker({ ...editingSpeaker, priority: parseInt(e.target.value) })}>
+                <option value={0}>None (Rotated)</option><option value={1}>Priority 1 (High)</option><option value={2}>Priority 2 (Medium)</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Availability</strong><br />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', marginTop: '8px' }}>
+                <label><input type="checkbox" checked={editingSpeaker.availability.sundayMorning} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayMorning: e.target.checked } })} /> Sun Morning</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.sundayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, sundayEvening: e.target.checked } })} /> Sun Evening</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.wednesdayEvening} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, wednesdayEvening: e.target.checked } })} /> Wednesday</label>
+                <label><input type="checkbox" checked={editingSpeaker.availability.communion} onChange={e => setEditingSpeaker({ ...editingSpeaker, availability: { ...editingSpeaker.availability, communion: e.target.checked } })} /> Communion</label>
+              </div>
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <strong>Repeat Speaking Rules</strong>
+              {(editingSpeaker.repeatRules || []).map((r, i) => (
+                <div key={i} style={{ background: '#f8f6f3', padding: '10px', borderRadius: '8px', marginTop: '8px', border: '1px solid #eee' }}>
+                  <select className="input-field" value={r.serviceType} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].serviceType = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
+                    <option value="">Select Service...</option><option value="sundayMorning">Sun AM</option><option value="sundayEvening">Sun PM</option><option value="wednesdayEvening">Wed</option>
+                  </select>
+                  <select className="input-field" style={{ marginTop: '4px' }} value={r.pattern} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].pattern = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}>
+                    <option value="everyOther">Every Other Week</option><option value="nthWeek">Specific Week of Month</option>
+                  </select>
+                  {r.pattern === 'everyOther' ? 
+                    <select className="input-field" style={{ marginTop: '4px' }} value={r.startWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].startWeek = e.target.value; setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value="odd">1st, 3rd, 5th weeks</option><option value="even">2nd, 4th weeks</option></select> :
+                    <select className="input-field" style={{ marginTop: '4px' }} value={r.nthWeek} onChange={e => { const nr = [...editingSpeaker.repeatRules]; nr[i].nthWeek = parseInt(e.target.value); setEditingSpeaker({ ...editingSpeaker, repeatRules: nr }); }}><option value={1}>1st Week</option><option value={2}>2nd Week</option><option value={3}>3rd Week</option><option value={4}>4th Week</option><option value={5}>5th Week</option></select>
+                  }
+                  <button onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: editingSpeaker.repeatRules.filter((_, idx) => idx !== i) })} style={{ width: '100%', marginTop: '4px', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>Remove Rule</button>
+                </div>
+              ))}
+              <button className="btn-secondary" style={{ width: '100%', marginTop: '8px', padding: '8px', fontSize: '13px' }} onClick={() => setEditingSpeaker({ ...editingSpeaker, repeatRules: [...(editingSpeaker.repeatRules || []), { serviceType: '', pattern: 'everyOther', startWeek: 'odd', nthWeek: 1 }] })}>+ Add Repeat Rule</button>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setShowAddSpeaker(false)}>Cancel</button>
-              <button className="btn-primary" onClick={() => { if (speakers.find(s => s.id === editingSpeaker.id)) setSpeakers(speakers.map(s => s.id === editingSpeaker.id ? editingSpeaker : s)); else setSpeakers([...speakers, editingSpeaker]); setShowAddSpeaker(false); }}>Save</button>
+              <button className="btn-primary" onClick={() => { if (speakers.find(s => s.id === editingSpeaker.id)) setSpeakers(speakers.map(s => s.id === editingSpeaker.id ? editingSpeaker : s)); else setSpeakers([...speakers, editingSpeaker]); setShowAddSpeaker(false); }}>Save Speaker</button>
             </div>
           </div>
         </div>
