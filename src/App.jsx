@@ -1,4 +1,5 @@
-import logo from './assets/logo-icon.svg';
+import logo from './assets/logo.svg';
+import logoIcon from './assets/logo-icon.svg'; // NEW: Import your logo icon
 import React, { useState, useEffect, useRef } from 'react';
 import emailjs from '@emailjs/browser';
 
@@ -83,7 +84,7 @@ export default function ChurchScheduleApp() {
       auth.current = window.firebase.auth();
       db.current = window.firebase.firestore();
 
-      // NEW: Invite check logic
+      // NEW: Invite check logic to auto-fill church name
       const checkInvitation = async () => {
         const urlParams = new URLSearchParams(window.location.search);
         const inviteCode = urlParams.get('invite');
@@ -182,6 +183,7 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
+  // ADMIN FUNCTIONS: Fixed Scoping (Move outside generateInviteLink)
   const updateMemberRole = async (targetUserId, newRole) => {
     try {
       await db.current.collection('users').doc(targetUserId).update({ role: newRole });
@@ -454,12 +456,15 @@ export default function ChurchScheduleApp() {
 
   if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Loading...</div>;
 
+  // LOGIN & SIGN UP SCREEN: Updated with logo icon and new branding text
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <style>{`* { box-sizing: border-box; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; }`}</style>
-      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px' }}>
-        <h2 style={{ textAlign: 'center', color: '#1e3a5f' }}>✝ Church Schedule</h2>
-        <form onSubmit={authView === 'login' ? handleLogin : handleRegister}>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <img src={logoIcon} alt="Logo" style={{ height: '80px', width: 'auto', marginBottom: '16px' }} />
+        <h2 style={{ textAlign: 'center', color: '#1e3a5f', marginTop: 0, marginBottom: '24px' }}>Church of Christ Collab App</h2>
+        
+        <form onSubmit={authView === 'login' ? handleLogin : handleRegister} style={{ width: '100%' }}>
           {authView === 'register' && <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
           {authView === 'register' && (
             <input 
@@ -474,7 +479,7 @@ export default function ChurchScheduleApp() {
           )}
           <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
-          <button type="submit" style={{ width: '100%', padding: '12px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>{authView === 'login' ? 'Login' : 'Sign Up'}</button>
+          <button type="submit" style={{ width: '100%', padding: '12px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>{authView === 'login' ? 'Login' : 'Sign Up'}</button>
         </form>
         <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ width: '100%', border: 'none', background: 'none', marginTop: '12px', cursor: 'pointer', color: '#1e3a5f' }}>{authView === 'login' ? "Need an account? Sign Up" : "Back to Login"}</button>
       </div>
@@ -497,10 +502,11 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
+      {/* HEADER SECTION: LIGHT MODE INVERSION */}
       <header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'flex-end', gap: '24px', paddingBottom: '4px' }}>
-            <img src={logo-icon} alt="CCC App Logo" style={{ height: '80px', width: 'auto', display: 'block', marginBottom: '-4px' }} />
+            <img src={logo} alt="CCC App Logo" style={{ height: '80px', width: 'auto', display: 'block', marginBottom: '-4px' }} />
             <div style={{ paddingBottom: '2px' }}>
               <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f', lineHeight: '1' }}>{churchName || 'Norman Church of Christ'}</h1>
               <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '6px', fontWeight: '500', marginBottom: 0 }}>Manage speakers and generated schedules</p>
@@ -618,6 +624,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
+      {/* SETTINGS MODAL: FIXED SYNTAX */}
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -677,6 +684,7 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
+      {/* OTHER MODALS (PROFILE, ADD SPEAKER, ASSIGN) RENDERED AS USUAL */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
