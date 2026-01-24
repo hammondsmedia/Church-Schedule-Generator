@@ -62,7 +62,10 @@ export default function ChurchScheduleApp() {
     wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
     communion: { enabled: true, label: 'Communion', time: '' }
   });
+  
   const [transferTarget, setTransferTarget] = useState(null); // Tracks the user being considered for transfer
+
+  const [churchNameLocked, setChurchNameLocked] = useState(false);
 
   useEffect(() => {
     const loadFirebase = async () => {
@@ -82,14 +85,32 @@ export default function ChurchScheduleApp() {
       else firebaseApp.current = window.firebase.apps[0];
       auth.current = window.firebase.auth();
       db.current = window.firebase.firestore();
+
+      // --- NEW INVITE CHECK LOGIC ---
+      const checkInvitation = async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteCode = urlParams.get('invite');
+        if (inviteCode) {
+          try {
+            const inviteDoc = await db.current.collection('invitations').doc(inviteCode).get();
+            if (inviteDoc.exists) {
+              const data = inviteDoc.data();
+              setChurchName(data.churchName); // Pre-fill the church name
+              setChurchNameLocked(true);      // Lock the field
+              setAuthView('register');        // Automatically show the Sign Up form
+            }
+          } catch (err) { console.error("Error checking invitation", err); }
+        }
+      };
+      checkInvitation();
+      // ------------------------------
+
       auth.current.onAuthStateChanged((u) => {
         setUser(u); setAuthLoading(false);
         if (u) loadUserData(u.uid);
       });
       setFirebaseReady(true);
     };
-    loadFirebase();
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => { if (showProfile && !e.target.closest('[data-profile-menu]')) setShowProfile(false); };
@@ -456,7 +477,17 @@ export default function ChurchScheduleApp() {
         <h2 style={{ textAlign: 'center', color: '#1e3a5f' }}>✝ Church Schedule</h2>
         <form onSubmit={authView === 'login' ? handleLogin : handleRegister}>
           {authView === 'register' && <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
-          {authView === 'register' && <input className="auth-in" placeholder="Church Name" value={churchName} onChange={e => setChurchName(e.target.value)} required />}
+          {authView === 'register' && (
+            <input 
+              className="auth-in" 
+              placeholder="Church Name" 
+              value={churchName} 
+              onChange={e => setChurchName(e.target.value)} 
+              disabled={churchNameLocked} // This locks the field
+              style={{ backgroundColor: churchNameLocked ? '#f3f4f6' : 'white', cursor: churchNameLocked ? 'not-allowed' : 'text' }}
+              required 
+            />
+          )}
           <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
           <button type="submit" style={{ width: '100%', padding: '12px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>{authView === 'login' ? 'Login' : 'Sign Up'}</button>
