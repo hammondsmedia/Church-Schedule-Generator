@@ -26,9 +26,9 @@ export default function ChurchScheduleApp() {
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
   const [churchName, setChurchName] = useState('');
+  const [churchNameLocked, setChurchNameLocked] = useState(false); // NEW: Lock for invites
   const [dataLoading, setDataLoading] = useState(false);
   
-  // Organization and Roles
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null); 
   const [members, setMembers] = useState([]);
@@ -62,10 +62,7 @@ export default function ChurchScheduleApp() {
     wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
     communion: { enabled: true, label: 'Communion', time: '' }
   });
-  
-  const [transferTarget, setTransferTarget] = useState(null); // Tracks the user being considered for transfer
-
-  const [churchNameLocked, setChurchNameLocked] = useState(false);
+  const [transferTarget, setTransferTarget] = useState(null);
 
   useEffect(() => {
     const loadFirebase = async () => {
@@ -86,7 +83,7 @@ export default function ChurchScheduleApp() {
       auth.current = window.firebase.auth();
       db.current = window.firebase.firestore();
 
-      // --- NEW INVITE CHECK LOGIC ---
+      // NEW: Invite check logic
       const checkInvitation = async () => {
         const urlParams = new URLSearchParams(window.location.search);
         const inviteCode = urlParams.get('invite');
@@ -95,15 +92,14 @@ export default function ChurchScheduleApp() {
             const inviteDoc = await db.current.collection('invitations').doc(inviteCode).get();
             if (inviteDoc.exists) {
               const data = inviteDoc.data();
-              setChurchName(data.churchName); // Pre-fill the church name
-              setChurchNameLocked(true);      // Lock the field
-              setAuthView('register');        // Automatically show the Sign Up form
+              setChurchName(data.churchName);
+              setChurchNameLocked(true);
+              setAuthView('register');
             }
           } catch (err) { console.error("Error checking invitation", err); }
         }
       };
       checkInvitation();
-      // ------------------------------
 
       auth.current.onAuthStateChanged((u) => {
         setUser(u); setAuthLoading(false);
@@ -111,6 +107,8 @@ export default function ChurchScheduleApp() {
       });
       setFirebaseReady(true);
     };
+    loadFirebase();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => { if (showProfile && !e.target.closest('[data-profile-menu]')) setShowProfile(false); };
@@ -184,36 +182,24 @@ export default function ChurchScheduleApp() {
     } catch (err) { setAuthError(err.message); }
   };
 
-  // ADMIN FUNCTIONS: Moved to correct scope
   const updateMemberRole = async (targetUserId, newRole) => {
     try {
-      await db.current.collection('users').doc(targetUserId).update({
-        role: newRole
-      });
+      await db.current.collection('users').doc(targetUserId).update({ role: newRole });
       alert(`Role updated to ${newRole}`);
       fetchMembers(orgId);
-    } catch (err) {
-      alert("Error updating role: " + err.message);
-    }
+    } catch (err) { alert("Error updating role: " + err.message); }
   };
   
   const removeMember = async (targetUserId, targetUserName) => {
     if (!window.confirm(`Are you sure you want to remove ${targetUserName}?`)) return;
     try {
-      await db.current.collection('users').doc(targetUserId).update({
-        orgId: null,
-        role: 'viewer'
-      });
+      await db.current.collection('users').doc(targetUserId).update({ orgId: null, role: 'viewer' });
       alert("Member removed successfully.");
       fetchMembers(orgId);
-    } catch (err) {
-      alert("Error removing member: " + err.message);
-    }
+    } catch (err) { alert("Error removing member: " + err.message); }
   };
   
   const transferOwnership = async (newOwnerId, newOwnerName) => {
-    const msg = `CRITICAL: You are about to transfer ownership to ${newOwnerName}. You will become an Admin and lose the ability to transfer ownership back. Proceed?`;
-    if (!window.confirm(msg)) return;
     try {
       const batch = db.current.batch();
       batch.update(db.current.collection('users').doc(user.uid), { role: 'admin' });
@@ -221,9 +207,7 @@ export default function ChurchScheduleApp() {
       await batch.commit();
       alert("Ownership transferred successfully.");
       window.location.reload();
-    } catch (err) {
-      alert("Transfer failed: " + err.message);
-    }
+    } catch (err) { alert("Transfer failed: " + err.message); }
   };
 
   const generateInviteLink = async () => {
@@ -483,7 +467,7 @@ export default function ChurchScheduleApp() {
               placeholder="Church Name" 
               value={churchName} 
               onChange={e => setChurchName(e.target.value)} 
-              disabled={churchNameLocked} // This locks the field
+              disabled={churchNameLocked}
               style={{ backgroundColor: churchNameLocked ? '#f3f4f6' : 'white', cursor: churchNameLocked ? 'not-allowed' : 'text' }}
               required 
             />
@@ -508,34 +492,22 @@ export default function ChurchScheduleApp() {
         .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
         .service-badge { padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin: 0 8px 4px 0; display: inline-block; }
-        .badge-priority { background: #fee2e2; color: #dc2626; }
-        .badge-morning { background: #dbeafe; color: #1e40af; }
-        .badge-evening { background: #ede9fe; color: #5b21b6; }
-        .badge-wednesday { background: #d1fae5; color: #065f46; }
-        .badge-communion { background: #fce7f3; color: #be185d; }
         .calendar-bar { padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: grab; display: block; width: 100%; text-align: left; border: none; }
         .bar-empty { background: #e5e7eb; color: #666; cursor: pointer; }
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      {/* HEADER SECTION */}
       <header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'flex-end', gap: '24px', paddingBottom: '4px' }}>
             <img src={logo} alt="CCC App Logo" style={{ height: '80px', width: 'auto', display: 'block', marginBottom: '-4px' }} />
             <div style={{ paddingBottom: '2px' }}>
-              <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f', lineHeight: '1' }}>
-                {churchName || 'Norman Church of Christ'}
-              </h1>
-              <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '6px', fontWeight: '500', marginBottom: 0 }}>
-                Manage speakers and generated schedules
-              </p>
+              <h1 style={{ margin: 0, fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '700', color: '#1e3a5f', lineHeight: '1' }}>{churchName || 'Norman Church of Christ'}</h1>
+              <p style={{ opacity: 0.7, fontSize: '14px', marginTop: '6px', fontWeight: '500', marginBottom: 0 }}>Manage speakers and generated schedules</p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {['owner', 'admin'].includes(userRole) && (
-              <button className="btn-secondary" onClick={() => setShowSettings(true)}>⚙️ Settings</button>
-            )}
+            {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
             <div style={{ position: 'relative' }} data-profile-menu>
               <button className="btn-secondary" onClick={() => setShowProfile(!showProfile)}>👤 {user.displayName || 'Account'}</button>
               {showProfile && (
@@ -553,20 +525,15 @@ export default function ChurchScheduleApp() {
           </div>
         </div>
 
-        {/* SAFETY CONFIRMATION MODAL */}
         {transferTarget && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
             <div style={{ background: 'white', padding: '32px', borderRadius: '16px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
               <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
               <h2 style={{ color: '#1e3a5f', margin: '0 0 12px 0' }}>Transfer Ownership?</h2>
-              <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>
-                You are about to make <strong>{transferTarget.displayName}</strong> the Owner of <strong>{churchName}</strong>. 
-                <br/><br/>
-                You will be demoted to <strong>Admin</strong> and will no longer be able to remove members or transfer ownership.
-              </p>
+              <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>You are about to make <strong>{transferTarget.displayName}</strong> the Owner of <strong>{churchName}</strong>. You will be demoted to <strong>Admin</strong>.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <button onClick={() => { transferOwnership(transferTarget.id, transferTarget.displayName); setTransferTarget(null); }} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>I Understand, Transfer Ownership</button>
-                <button onClick={() => setTransferTarget(null)} style={{ background: '#f3f4f6', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', color: '#666' }}>Cancel and Go Back</button>
+                <button onClick={() => { transferOwnership(transferTarget.id, transferTarget.displayName); setTransferTarget(null); }} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Transfer Ownership</button>
+                <button onClick={() => setTransferTarget(null)} style={{ background: '#f3f4f6', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', color: '#666' }}>Cancel</button>
               </div>
             </div>
           </div>
@@ -586,9 +553,7 @@ export default function ChurchScheduleApp() {
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            {view === 'calendar' && ['owner', 'admin'].includes(userRole) && (
-              <button className="btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={clearMonth}>🗑️ Clear Month</button>
-            )}
+            {view === 'calendar' && ['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={clearMonth}>🗑️ Clear Month</button>}
             {view === 'calendar' && <button className="btn-secondary" onClick={exportToPDF}>📄 Export PDF</button>}
             {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={generateSchedule}>⚡ Generate Schedule</button>}
           </div>
@@ -601,11 +566,10 @@ export default function ChurchScheduleApp() {
               {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={() => { setEditingSpeaker({ id: Date.now(), firstName: '', lastName: '', availability: {}, blockOffDates: [], repeatRules: [] }); setShowAddSpeaker(true); }}>+ Add Speaker</button>}
             </div>
             {speakers.map(s => (
-              <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div>
                   <h3 style={{ margin: '0 0 8px 0', color: '#1e3a5f' }}>{s.firstName} {s.lastName}</h3>
                   <div style={{ marginBottom: '8px' }}>
-                    {s.priority > 0 && <span className="service-badge badge-priority">★ Priority {s.priority}</span>}
                     {s.availability.sundayMorning && <span className="service-badge badge-morning">Sunday Morning</span>}
                     {s.availability.sundayEvening && <span className="service-badge badge-evening">Sunday Evening</span>}
                     {s.availability.wednesdayEvening && <span className="service-badge badge-wednesday">Wednesday Evening</span>}
@@ -614,8 +578,8 @@ export default function ChurchScheduleApp() {
                 </div>
                 {['owner', 'admin'].includes(userRole) && (
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button className="btn-secondary" style={{ padding: '8px 12px' }} onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
-                    <button style={{ padding: '8px 12px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer' }} onClick={() => setSpeakers(speakers.filter(sp => sp.id !== s.id))}>Remove</button>
+                    <button className="btn-secondary" onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>Edit</button>
+                    <button style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', padding: '10px', cursor: 'pointer' }} onClick={() => setSpeakers(speakers.filter(sp => sp.id !== s.id))}>Remove</button>
                   </div>
                 )}
               </div>
@@ -631,9 +595,9 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    {serviceSettings.sundayMorning.enabled && <button draggable={!!sm && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-sundayMorning')} onDrop={() => handleDrop(k + '-sundayMorning')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (sm ? 'badge-morning' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayMorning', date: k, serviceType: 'sundayMorning' })}>{serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</button>}
-                    {serviceSettings.communion.enabled && <button draggable={!!c && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-communion')} onDrop={() => handleDrop(k + '-communion')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (c ? 'badge-communion' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-communion', date: k, serviceType: 'communion' })}>Communion: {c ? getSpeakerName(c.speakerId) : '+ Assign'}</button>}
-                    {serviceSettings.sundayEvening.enabled && <button draggable={!!se && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-sundayEvening')} onDrop={() => handleDrop(k + '-sundayEvening')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (se ? 'badge-evening' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayEvening', date: k, serviceType: 'sundayEvening' })}>{serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.sundayMorning.enabled && <button className={'calendar-bar ' + (sm ? 'badge-morning' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayMorning', date: k, serviceType: 'sundayMorning' })}>{serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.communion.enabled && <button className={'calendar-bar ' + (c ? 'badge-communion' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-communion', date: k, serviceType: 'communion' })}>Communion: {c ? getSpeakerName(c.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.sundayEvening.enabled && <button className={'calendar-bar ' + (se ? 'badge-evening' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayEvening', date: k, serviceType: 'sundayEvening' })}>{serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}</button>}
                   </div>
                 );
               })}
@@ -645,7 +609,7 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    <button draggable={!!w && ['owner', 'admin'].includes(userRole)} onDragStart={() => handleDragStart(k + '-wednesdayEvening')} onDrop={() => handleDrop(k + '-wednesdayEvening')} onDragOver={e => e.preventDefault()} className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
+                    <button className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
                   </div>
                 );
               })}
@@ -654,7 +618,6 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* SETTINGS MODAL: FIXED NESTING */}
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -685,11 +648,6 @@ export default function ChurchScheduleApp() {
                     </select>
                     <button className="btn-primary" onClick={generateInviteLink} style={{ flex: '1 1 100px', fontSize: '13px' }}>Send Invite</button>
                   </div>
-                  {generatedInvite && (
-                    <div style={{ marginTop: '12px', padding: '8px', background: '#d1fae5', borderRadius: '8px' }}>
-                      <p style={{ fontSize: '11px', color: '#065f46', marginBottom: '4px' }}>✓ Copy link: {generatedInvite}</p>
-                    </div>
-                  )}
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -708,9 +666,7 @@ export default function ChurchScheduleApp() {
                       {((userRole === 'owner' && member.role !== 'owner') || (userRole === 'admin' && !['owner', 'admin'].includes(member.role))) && (
                         <button onClick={() => removeMember(member.id, member.displayName)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>
                       )}
-                      {userRole === 'owner' && member.id !== user.uid && (
-                        <button onClick={() => setTransferTarget(member)} className="btn-secondary" style={{ fontSize: '10px' }}>Transfer</button>
-                      )}
+                      {userRole === 'owner' && member.id !== user.uid && <button onClick={() => setTransferTarget(member)} className="btn-secondary" style={{ fontSize: '10px' }}>Transfer</button>}
                     </div>
                   </div>
                 ))}
@@ -721,7 +677,6 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* EDIT PROFILE MODAL */}
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
@@ -740,7 +695,6 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* ADD/EDIT SPEAKER MODAL */}
       {showAddSpeaker && editingSpeaker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '450px' }}>
@@ -748,12 +702,6 @@ export default function ChurchScheduleApp() {
             <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
               <input className="input-field" placeholder="First" value={editingSpeaker.firstName} onChange={e => setEditingSpeaker({ ...editingSpeaker, firstName: e.target.value })} />
               <input className="input-field" placeholder="Last" value={editingSpeaker.lastName} onChange={e => setEditingSpeaker({ ...editingSpeaker, lastName: e.target.value })} />
-            </div>
-            <div style={{ marginBottom: '12px' }}>
-              <label>Priority</label>
-              <select className="input-field" value={editingSpeaker.priority || 0} onChange={e => setEditingSpeaker({ ...editingSpeaker, priority: parseInt(e.target.value) })}>
-                <option value={0}>None</option><option value={1}>High</option><option value={2}>Medium</option>
-              </select>
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
               <button className="btn-secondary" onClick={() => setShowAddSpeaker(false)}>Cancel</button>
@@ -763,7 +711,6 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* ASSIGN SLOT MODAL */}
       {assigningSlot && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
