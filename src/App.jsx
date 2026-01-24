@@ -62,6 +62,7 @@ export default function ChurchScheduleApp() {
     wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
     communion: { enabled: true, label: 'Communion', time: '' }
   });
+  const [transferTarget, setTransferTarget] = useState(null); // Tracks the user being considered for transfer
 
   useEffect(() => {
     const loadFirebase = async () => {
@@ -183,6 +184,54 @@ export default function ChurchScheduleApp() {
         church_name: churchName,
         invite_link: link,
         role: inviteRole
+      };
+
+      // 1. Update a member's role
+      const updateMemberRole = async (targetUserId, newRole) => {
+        try {
+          await db.current.collection('users').doc(targetUserId).update({
+            role: newRole
+          });
+          alert(`Role updated to ${newRole}`);
+        } catch (err) {
+          alert("Error updating role: " + err.message);
+        }
+      };
+      
+      // 2. Remove a member from the organization
+      const removeMember = async (targetUserId, targetUserName) => {
+        if (!window.confirm(`Are you sure you want to remove ${targetUserName}?`)) return;
+        
+        try {
+          // We "remove" them by clearing their orgId and resetting their role
+          await db.current.collection('users').doc(targetUserId).update({
+            orgId: null,
+            role: 'viewer'
+          });
+          alert("Member removed successfully.");
+        } catch (err) {
+          alert("Error removing member: " + err.message);
+        }
+      };
+      
+      // 3. Transfer Ownership (Owner Only)
+      const transferOwnership = async (newOwnerId, newOwnerName) => {
+        const msg = `CRITICAL: You are about to transfer ownership to ${newOwnerName}. You will become an Admin and lose the ability to transfer ownership back. Proceed?`;
+        if (!window.confirm(msg)) return;
+      
+        try {
+          const batch = db.current.batch();
+          // Demote current owner to admin
+          batch.update(db.current.collection('users').doc(user.uid), { role: 'admin' });
+          // Promote new user to owner
+          batch.update(db.current.collection('users').doc(newOwnerId), { role: 'owner' });
+          
+          await batch.commit();
+          alert("Ownership transferred successfully.");
+          window.location.reload(); // Reload to refresh permissions
+        } catch (err) {
+          alert("Transfer failed: " + err.message);
+        }
       };
 
       await emailjs.send(
@@ -506,6 +555,39 @@ export default function ChurchScheduleApp() {
       </div>
     </div>
   </div> {/* Matches the wrapper div */}
+
+  {/* SAFETY CONFIRMATION MODAL */}
+  {transferTarget && (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
+      <div style={{ background: 'white', padding: '32px', borderRadius: '16px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <h2 style={{ color: '#1e3a5f', margin: '0 0 12px 0' }}>Transfer Ownership?</h2>
+        <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>
+          You are about to make <strong>{transferTarget.displayName}</strong> the Owner of <strong>{churchName}</strong>. 
+          <br/><br/>
+          You will be demoted to <strong>Admin</strong> and will no longer be able to remove members or transfer ownership.
+        </p>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <button 
+            onClick={() => {
+              transferOwnership(transferTarget.id, transferTarget.displayName);
+              setTransferTarget(null);
+            }}
+            style={{ background: '#dc2626', color: 'white', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            I Understand, Transfer Ownership
+          </button>
+          <button 
+            onClick={() => setTransferTarget(null)}
+            style={{ background: '#f3f4f6', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', color: '#666' }}
+          >
+            Cancel and Go Back
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
 </header>
 
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
@@ -679,22 +761,60 @@ export default function ChurchScheduleApp() {
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {members.map(member => (
-                  <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#fff', border: '1px solid #ddd', borderRadius: '8px', flexWrap: 'wrap', gap: '10px' }}>
+                {members.map((member) => (
+                  <div key={member.id} style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    padding: '12px', 
+                    borderBottom: '1px solid #eee' 
+                  }}>
                     <div>
-                      <div style={{ fontWeight: '600', fontSize: '14px' }}>{member.name} {member.uid === user.uid ? '(You)' : ''}</div>
+                      <div style={{ fontWeight: '600' }}>{member.displayName} {member.id === user.uid && "(You)"}</div>
                       <div style={{ fontSize: '12px', color: '#666' }}>{member.email}</div>
                     </div>
-                    <span className="service-badge badge-morning" style={{ margin: 0 }}>{member.role}</span>
+                
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {/* ROLE SELECT: Visible if user is owner OR (admin managing a non-owner) */}
+                      {(userRole === 'owner' || (userRole === 'admin' && member.role !== 'owner')) && member.id !== user.uid ? (
+                        <select 
+                          value={member.role}
+                          onChange={(e) => updateMemberRole(member.id, e.target.value)}
+                          style={{ padding: '4px', borderRadius: '4px', fontSize: '12px' }}
+                        >
+                          <option value="viewer">Viewer</option>
+                          <option value="editor">Editor</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      ) : (
+                        <span className="badge">{member.role}</span>
+                      )}
+                
+                      {/* REMOVE BUTTON: Owner can remove anyone; Admin can remove non-owners */}
+                      {((userRole === 'owner' && member.role !== 'owner') || 
+                        (userRole === 'admin' && !['owner', 'admin'].includes(member.role))) && (
+                        <button 
+                          onClick={() => removeMember(member.id, member.displayName)}
+                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '18px' }}
+                          title="Remove Member"
+                        >
+                          ✕
+                        </button>
+                      )}
+                
+                      {/* TRANSFER BUTTON IN MEMBER LIST */}
+                      {userRole === 'owner' && member.id !== user.uid && (
+                        <button 
+                          onClick={() => setTransferTarget(member)} // Opens the safety modal
+                          className="btn-secondary"
+                          style={{ fontSize: '10px', padding: '4px 8px', color: '#dc2626', borderColor: '#dc2626' }}
+                        >
+                          Transfer Ownership
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            <button className="btn-primary" style={{ width: '100%', marginTop: '20px' }} onClick={() => setShowSettings(false)}>Close</button>
-          </div>
-        </div>
-      )}
 
       {showAddSpeaker && editingSpeaker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
