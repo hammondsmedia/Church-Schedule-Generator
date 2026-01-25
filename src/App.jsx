@@ -55,6 +55,7 @@ export default function ChurchScheduleApp() {
   const [draggedSlot, setDraggedSlot] = useState(null);
   const [showAddSpeaker, setShowAddSpeaker] = useState(false);
   const [assigningSlot, setAssigningSlot] = useState(null);
+  const [editingNote, setEditingNote] = useState(null); // NEW: State for notes modal
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [serviceSettings, setServiceSettings] = useState({
@@ -245,6 +246,15 @@ export default function ChurchScheduleApp() {
     } catch (err) { alert('Error: ' + err.message); }
   };
 
+  const handleSaveNote = (slotKey, noteText) => {
+    const newSchedule = { ...schedule };
+    if (newSchedule[slotKey]) {
+      newSchedule[slotKey].note = noteText;
+      setSchedule(newSchedule);
+    }
+    setEditingNote(null);
+  };
+
   const handleDeleteAccount = async () => {
     const confirmMessage = userRole === 'owner' 
       ? "WARNING: You are the owner. Deleting your account will leave the church schedule without an owner. Proceed?"
@@ -413,16 +423,30 @@ export default function ChurchScheduleApp() {
     sundays.forEach(({ date }) => {
       const dk = date.toISOString().split('T')[0], sm = schedule[dk + '-sundayMorning'], c = schedule[dk + '-communion'], se = schedule[dk + '-sundayEvening'];
       let sv = '';
-      if (serviceSettings.sundayMorning.enabled) sv += '<div style="background:#dbeafe;color:#1e40af;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>' + serviceSettings.sundayMorning.time + ':</strong> ' + (sm ? getSpeakerName(sm.speakerId) : '—') + '</div>';
-      if (serviceSettings.communion.enabled) sv += '<div style="background:#fce7f3;color:#be185d;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>Communion:</strong> ' + (c ? getSpeakerName(c.speakerId) : '—') + '</div>';
-      if (serviceSettings.sundayEvening.enabled) sv += '<div style="background:#ede9fe;color:#5b21b6;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>' + serviceSettings.sundayEvening.time + ':</strong> ' + (se ? getSpeakerName(se.speakerId) : '—') + '</div>';
+      if (serviceSettings.sundayMorning.enabled) {
+          sv += '<div style="background:#dbeafe;color:#1e40af;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>' + serviceSettings.sundayMorning.time + ':</strong> ' + (sm ? getSpeakerName(sm.speakerId) : '—');
+          if (sm?.note) sv += '<br/><span style="font-size:11px;opacity:0.8;">Topic: ' + sm.note + '</span>';
+          sv += '</div>';
+      }
+      if (serviceSettings.communion.enabled) {
+          sv += '<div style="background:#fce7f3;color:#be185d;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>Communion:</strong> ' + (c ? getSpeakerName(c.speakerId) : '—');
+          if (c?.note) sv += '<br/><span style="font-size:11px;opacity:0.8;">Note: ' + c.note + '</span>';
+          sv += '</div>';
+      }
+      if (serviceSettings.sundayEvening.enabled) {
+          sv += '<div style="background:#ede9fe;color:#5b21b6;padding:6px 10px;border-radius:4px;font-size:13px;margin:4px 0;"><strong>' + serviceSettings.sundayEvening.time + ':</strong> ' + (se ? getSpeakerName(se.speakerId) : '—');
+          if (se?.note) sv += '<br/><span style="font-size:11px;opacity:0.8;">Topic: ' + se.note + '</span>';
+          sv += '</div>';
+      }
       sundaysHTML += '<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">' + date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</div>' + sv + '</div>';
     });
 
     let wedsHTML = '';
     wednesdays.forEach(({ date }) => {
       const dk = date.toISOString().split('T')[0], w = schedule[dk + '-wednesdayEvening'];
-      wedsHTML += '<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">' + date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</div><div style="background:#d1fae5;color:#065f46;padding:6px 10px;border-radius:4px;font-size:13px;"><strong>' + serviceSettings.wednesdayEvening.time + ':</strong> ' + (w ? getSpeakerName(w.speakerId) : '—') + '</div></div>';
+      wedsHTML += '<div style="padding:12px;border-bottom:1px solid #ddd;"><div style="font-weight:bold;">' + date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</div><div style="background:#d1fae5;color:#065f46;padding:6px 10px;border-radius:4px;font-size:13px;"><strong>' + serviceSettings.wednesdayEvening.time + ':</strong> ' + (w ? getSpeakerName(w.speakerId) : '—');
+      if (w?.note) wedsHTML += '<br/><span style="font-size:11px;opacity:0.8;">Topic: ' + w.note + '</span>';
+      wedsHTML += '</div></div>';
     });
 
     printWindow.document.write('<html><head><title>Schedule - ' + monthName + '</title><style>body { font-family: sans-serif; padding: 20px; } h1, h2 { text-align: center; color: #1e3a5f; } .container { display: flex; gap: 24px; } .column { flex: 1; } .column-header { background: #1e3a5f; color: white; padding: 12px; text-align: center; font-weight: bold; }</style></head><body><h1>Teaching Schedule</h1><h2>' + monthName + '</h2><div class="container"><div class="column"><div class="column-header">Sundays</div>' + sundaysHTML + '</div><div class="column"><div class="column-header">Wednesdays</div>' + wedsHTML + '</div></div><script>window.print();</script></body></html>');
@@ -549,7 +573,7 @@ export default function ChurchScheduleApp() {
       </header>
 
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
-        {/* NEW: DYNAMIC CHURCH NAME ABOVE TABS */}
+        {/* DYNAMIC CHURCH NAME ABOVE TABS */}
         <h2 style={{ 
           color: '#1e3a5f', 
           marginBottom: '20px', 
@@ -625,9 +649,33 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    {serviceSettings.sundayMorning.enabled && <button className={'calendar-bar ' + (sm ? 'badge-morning' : 'bar-empty')} style={sm ? {background:'#dbeafe', color:'#1e40af'} : {}} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayMorning', date: k, serviceType: 'sundayMorning' })}>{serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</button>}
-                    {serviceSettings.communion.enabled && <button className={'calendar-bar ' + (c ? 'badge-communion' : 'bar-empty')} style={c ? {background:'#fce7f3', color:'#be185d'} : {}} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-communion', date: k, serviceType: 'communion' })}>Communion: {c ? getSpeakerName(c.speakerId) : '+ Assign'}</button>}
-                    {serviceSettings.sundayEvening.enabled && <button className={'calendar-bar ' + (se ? 'badge-evening' : 'bar-empty')} style={se ? {background:'#ede9fe', color:'#5b21b6'} : {}} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayEvening', date: k, serviceType: 'sundayEvening' })}>{serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}</button>}
+                    {serviceSettings.sundayMorning.enabled && (
+                        <button className={'calendar-bar ' + (sm ? '' : 'bar-empty')} style={sm ? {background:'#dbeafe', color:'#1e40af'} : {}} 
+                            onClick={() => sm ? setEditingNote({ slotKey: k + '-sundayMorning', ...sm }) : ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayMorning', date: k, serviceType: 'sundayMorning' })}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span>{serviceSettings.sundayMorning.label}: {sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</span>
+                                {sm?.note && <span style={{ fontSize: '11px', opacity: 0.8, fontStyle: 'italic', marginTop: '2px' }}>Topic: {sm.note}</span>}
+                            </div>
+                        </button>
+                    )}
+                    {serviceSettings.communion.enabled && (
+                        <button className={'calendar-bar ' + (c ? '' : 'bar-empty')} style={c ? {background:'#fce7f3', color:'#be185d'} : {}} 
+                            onClick={() => c ? setEditingNote({ slotKey: k + '-communion', ...c }) : ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-communion', date: k, serviceType: 'communion' })}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span>Communion: {c ? getSpeakerName(c.speakerId) : '+ Assign'}</span>
+                                {c?.note && <span style={{ fontSize: '11px', opacity: 0.8, fontStyle: 'italic', marginTop: '2px' }}>Note: {c.note}</span>}
+                            </div>
+                        </button>
+                    )}
+                    {serviceSettings.sundayEvening.enabled && (
+                        <button className={'calendar-bar ' + (se ? '' : 'bar-empty')} style={se ? {background:'#ede9fe', color:'#5b21b6'} : {}} 
+                            onClick={() => se ? setEditingNote({ slotKey: k + '-sundayEvening', ...se }) : ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-sundayEvening', date: k, serviceType: 'sundayEvening' })}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span>{serviceSettings.sundayEvening.label}: {se ? getSpeakerName(se.speakerId) : '+ Assign'}</span>
+                                {se?.note && <span style={{ fontSize: '11px', opacity: 0.8, fontStyle: 'italic', marginTop: '2px' }}>Topic: {se.note}</span>}
+                            </div>
+                        </button>
+                    )}
                   </div>
                 );
               })}
@@ -639,7 +687,13 @@ export default function ChurchScheduleApp() {
                 return (
                   <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px' }}>{d.date.getDate()}</div>
-                    <button className={'calendar-bar ' + (w ? 'badge-wednesday' : 'bar-empty')} style={w ? {background:'#d1fae5', color:'#065f46'} : {}} onClick={() => ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</button>
+                    <button className={'calendar-bar ' + (w ? '' : 'bar-empty')} style={w ? {background:'#d1fae5', color:'#065f46'} : {}} 
+                        onClick={() => w ? setEditingNote({ slotKey: k + '-wednesdayEvening', ...w }) : ['owner', 'admin', 'standard'].includes(userRole) && setAssigningSlot({ slotKey: k + '-wednesdayEvening', date: k, serviceType: 'wednesdayEvening' })}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span>{serviceSettings.wednesdayEvening.label}: {w ? getSpeakerName(w.speakerId) : '+ Assign'}</span>
+                            {w?.note && <span style={{ fontSize: '11px', opacity: 0.8, fontStyle: 'italic', marginTop: '2px' }}>Topic: {w.note}</span>}
+                        </div>
+                    </button>
                   </div>
                 );
               })}
@@ -648,7 +702,38 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* MODALS */}
+      {/* SLOT DETAIL / NOTE MODAL */}
+      {editingNote && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
+            <h3 style={{ margin: '0 0 10px 0' }}>Manage Schedule Slot</h3>
+            <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '14px' }}>
+                Speaker: <strong>{getSpeakerName(editingNote.speakerId)}</strong>
+            </p>
+            
+            <label style={{ fontSize: '13px', fontWeight: '600', display: 'block', marginBottom: '8px' }}>Lesson Topic / Note</label>
+            <textarea 
+              className="input-field" 
+              style={{ height: '100px', resize: 'none', marginBottom: '20px' }} 
+              placeholder="Enter lesson topic or additional details..."
+              value={editingNote.note || ''}
+              onChange={(e) => setEditingNote({ ...editingNote, note: e.target.value })}
+            />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button className="btn-primary" onClick={() => handleSaveNote(editingNote.slotKey, editingNote.note)}>Save Note</button>
+                {['owner', 'admin', 'standard'].includes(userRole) && (
+                    <button className="btn-secondary" onClick={() => { setAssigningSlot({ slotKey: editingNote.slotKey, date: editingNote.date, serviceType: editingNote.serviceType }); setEditingNote(null); }}>
+                        Change Speaker
+                    </button>
+                )}
+                <button className="btn-secondary" style={{ border: 'none', color: '#666' }} onClick={() => setEditingNote(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OTHER MODALS */}
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
