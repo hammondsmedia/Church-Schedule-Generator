@@ -41,6 +41,7 @@ export default function ChurchScheduleApp() {
   const [userLastName, setUserLastName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // NEW: Confirmation state
   const [showEditProfile, setShowEditProfile] = useState(false);
 
   const firebaseApp = useRef(null);
@@ -55,7 +56,7 @@ export default function ChurchScheduleApp() {
   const [draggedSlot, setDraggedSlot] = useState(null);
   const [showAddSpeaker, setShowAddSpeaker] = useState(false);
   const [assigningSlot, setAssigningSlot] = useState(null);
-  const [editingNote, setEditingNote] = useState(null); // NEW: State for notes modal
+  const [editingNote, setEditingNote] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [serviceSettings, setServiceSettings] = useState({
@@ -174,12 +175,24 @@ export default function ChurchScheduleApp() {
     try {
       const u = auth.current.currentUser;
       const full = (userFirstName + ' ' + userLastName).trim();
+      
+      // Password match validation
+      if (newPassword) {
+        if (newPassword !== confirmPassword) {
+          alert("Passwords do not match!");
+          return;
+        }
+        await u.updatePassword(newPassword);
+      }
+
       if (newEmail !== u.email) await u.updateEmail(newEmail);
-      if (newPassword) await u.updatePassword(newPassword);
       await db.current.collection('users').doc(u.uid).set({ firstName: userFirstName, lastName: userLastName, name: full, email: newEmail }, { merge: true });
       if (userRole === 'owner') await db.current.collection('organizations').doc(orgId).set({ churchName }, { merge: true });
       await u.updateProfile({ displayName: full });
-      alert('Profile updated!'); setShowEditProfile(false); setNewPassword('');
+      alert('Profile updated!'); 
+      setShowEditProfile(false); 
+      setNewPassword('');
+      setConfirmPassword('');
     } catch (err) { setAuthError(err.message); }
   };
 
@@ -524,7 +537,7 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      {/* UPDATED HEADER: BRIGHT BRANDING */}
+      {/* HEADER SECTION */}
       <header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -573,15 +586,7 @@ export default function ChurchScheduleApp() {
       </header>
 
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
-        {/* DYNAMIC CHURCH NAME ABOVE TABS */}
-        <h2 style={{ 
-          color: '#1e3a5f', 
-          marginBottom: '20px', 
-          fontWeight: '700', 
-          fontSize: '24px',
-          borderLeft: '4px solid #FF8C37',
-          paddingLeft: '16px'
-        }}>
+        <h2 style={{ color: '#1e3a5f', marginBottom: '20px', fontWeight: '700', fontSize: '24px', borderLeft: '4px solid #FF8C37', paddingLeft: '16px' }}>
           {churchName || 'Norman Church of Christ'}
         </h2>
 
@@ -702,7 +707,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      {/* SLOT DETAIL / NOTE MODAL */}
+      {/* MODALS */}
       {editingNote && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
@@ -710,22 +715,12 @@ export default function ChurchScheduleApp() {
             <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '14px' }}>
                 Speaker: <strong>{getSpeakerName(editingNote.speakerId)}</strong>
             </p>
-            
             <label style={{ fontSize: '13px', fontWeight: '600', display: 'block', marginBottom: '8px' }}>Lesson Topic / Note</label>
-            <textarea 
-              className="input-field" 
-              style={{ height: '100px', resize: 'none', marginBottom: '20px' }} 
-              placeholder="Enter lesson topic or additional details..."
-              value={editingNote.note || ''}
-              onChange={(e) => setEditingNote({ ...editingNote, note: e.target.value })}
-            />
-
+            <textarea className="input-field" style={{ height: '100px', resize: 'none', marginBottom: '20px' }} placeholder="Enter lesson topic..." value={editingNote.note || ''} onChange={(e) => setEditingNote({ ...editingNote, note: e.target.value })} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <button className="btn-primary" onClick={() => handleSaveNote(editingNote.slotKey, editingNote.note)}>Save Note</button>
                 {['owner', 'admin', 'standard'].includes(userRole) && (
-                    <button className="btn-secondary" onClick={() => { setAssigningSlot({ slotKey: editingNote.slotKey, date: editingNote.date, serviceType: editingNote.serviceType }); setEditingNote(null); }}>
-                        Change Speaker
-                    </button>
+                    <button className="btn-secondary" onClick={() => { setAssigningSlot({ slotKey: editingNote.slotKey, date: editingNote.date, serviceType: editingNote.serviceType }); setEditingNote(null); }}>Change Speaker</button>
                 )}
                 <button className="btn-secondary" style={{ border: 'none', color: '#666' }} onClick={() => setEditingNote(null)}>Cancel</button>
             </div>
@@ -733,7 +728,6 @@ export default function ChurchScheduleApp() {
         </div>
       )}
 
-      {/* OTHER MODALS */}
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -751,7 +745,6 @@ export default function ChurchScheduleApp() {
                 )}
               </div>
             ))}
-            
             <div style={{ marginTop: '32px', borderTop: '2px solid #eee', paddingTop: '20px' }}>
               <h4 style={{ color: '#1e3a5f', marginBottom: '16px' }}>👥 Organization Members</h4>
               {userRole === 'owner' && (
@@ -796,14 +789,19 @@ export default function ChurchScheduleApp() {
       {showEditProfile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>Edit Profile</h3>
+            <h3 style={{ margin: '0 0 20px 0' }}>Edit Profile & Congregation</h3>
             <form onSubmit={handleUpdateProfile}>
-              <input className="input-field" style={{ marginBottom: '12px' }} value={churchName} onChange={e => setChurchName(e.target.value)} disabled={userRole !== 'owner'} />
-              <input className="input-field" style={{ marginBottom: '12px' }} placeholder="First Name" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required />
-              <input className="input-field" style={{ marginBottom: '12px' }} placeholder="Last Name" value={userLastName} onChange={e => setUserLastName(e.target.value)} required />
-              <input className="input-field" style={{ marginBottom: '24px' }} placeholder="Email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required />
+              <div style={{ marginBottom: '12px' }}><label>Congregation Name</label><input className="input-field" value={churchName} onChange={e => setChurchName(e.target.value)} disabled={userRole !== 'owner'} required /></div>
+              <div style={{ marginBottom: '12px' }}><label>First Name</label><input className="input-field" placeholder="First Name" value={userFirstName} onChange={e => setUserFirstName(e.target.value)} required /></div>
+              <div style={{ marginBottom: '12px' }}><label>Last Name</label><input className="input-field" placeholder="Last Name" value={userLastName} onChange={e => setUserLastName(e.target.value)} required /></div>
+              <div style={{ marginBottom: '12px' }}><label>Email</label><input className="input-field" placeholder="Email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required /></div>
+              
+              {/* RESTORED: PASSWORD UPDATE FIELDS */}
+              <div style={{ marginBottom: '12px' }}><label>New Password (Optional)</label><input className="input-field" type="password" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} /></div>
+              <div style={{ marginBottom: '24px' }}><label>Confirm New Password</label><input className="input-field" type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} /></div>
+              
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowEditProfile(false)}>Cancel</button>
+                <button type="button" className="btn-secondary" onClick={() => { setShowEditProfile(false); setNewPassword(''); setConfirmPassword(''); }}>Cancel</button>
                 <button type="submit" className="btn-primary">Save Changes</button>
               </div>
             </form>
