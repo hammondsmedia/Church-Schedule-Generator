@@ -2,6 +2,8 @@ import logo from './assets/logo.svg';
 import logoIcon from './assets/logo-icon.svg'; 
 import React, { useState, useEffect, useRef } from 'react';
 import emailjs from '@emailjs/browser';
+import ServicesTab from './ServicesTab';
+
 
 // Firebase configuration
 const FIREBASE_CONFIG = {
@@ -49,6 +51,7 @@ export default function ChurchScheduleApp() {
   const auth = useRef(null);
 
   const [speakers, setSpeakers] = useState([]);
+  const [servicePeople, setServicePeople] = useState([]);
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [view, setView] = useState('speakers');
@@ -148,6 +151,7 @@ export default function ChurchScheduleApp() {
             if (orgData.speakers) setSpeakers(orgData.speakers);
             if (orgData.schedule) setSchedule(orgData.schedule);
             if (orgData.serviceSettings) setServiceSettings(orgData.serviceSettings);
+            if (orgData.servicePeople) setServicePeople(orgData.servicePeople);
             if (orgData.churchName) setChurchName(orgData.churchName);
           }
         }
@@ -159,7 +163,7 @@ export default function ChurchScheduleApp() {
   const saveOrgData = async () => {
     if (!db.current || !orgId || dataLoading || !['owner', 'admin'].includes(userRole)) return;
     try {
-      await db.current.collection('organizations').doc(orgId).set({ speakers, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() }, { merge: true });
+      await db.current.collection('organizations').doc(orgId).set({ speakers, servicePeople, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() }, { merge: true });
     } catch (err) { console.error('Save failed', err); }
   };
 
@@ -588,6 +592,8 @@ export default function ChurchScheduleApp() {
         <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', overflowX: 'auto' }}>
           <button className={'nav-tab ' + (view === 'speakers' ? 'active' : '')} onClick={() => setView('speakers')}>👤 Speakers</button>
           <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
+          <button className={'nav-tab ' + (view === 'services' ? 'active' : '')} onClick={() => setView('services')}>🛠️ Services</button>
+
         </nav>
 
         {/* ALIGNMENT FIX: justify-content flex-end ensures desktop action buttons push to the right */}
@@ -641,8 +647,16 @@ export default function ChurchScheduleApp() {
               </div>
             ))}
           </div>
-        ) : (
-          <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexWrap: 'wrap' }}>
+        ) : view === 'services' ? (
+  <ServicesTab
+  servicePeople={servicePeople}
+  setServicePeople={setServicePeople}
+  speakers={speakers}
+/>
+
+) : (
+  <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexWrap: 'wrap' }}>
+
             <div style={{ flex: '1 1 300px', borderRight: '1px solid #eee' }}>
               <div style={{ padding: '16px', textAlign: 'center', background: '#f8f6f3', fontWeight: 'bold' }}>Sundays</div>
               {getMonthDays(selectedMonth).filter(d => d.isCurrentMonth && d.date.getDay() === 0).map(d => {
