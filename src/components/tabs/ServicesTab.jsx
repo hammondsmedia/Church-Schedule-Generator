@@ -78,19 +78,27 @@ function savePlans(plans) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(plans));
 }
 
+function sortByNameDesc(a, b) {
+  // Z -> A (descending)
+  return (b?.name || "").localeCompare(a?.name || "", undefined, { sensitivity: "base" });
+}
+
 /**
  * IMPORTANT:
  * This component now expects `schedule` from App.jsx
  * because the Calendar schedule lives there.
  */
 export default function ServicesTab({ servicePeople, setServicePeople, speakers, schedule }) {
+  const [showServicePeople, setShowServicePeople] = useState(false);
+
   const speakerOptions = useMemo(() => {
     return (speakers || [])
       .map((s) => ({
         id: s.id,
         name: `${s.firstName || ""} ${s.lastName || ""}`.trim(),
       }))
-      .filter((x) => x.name.length > 0);
+      .filter((x) => x.name.length > 0)
+      .sort(sortByNameDesc);
   }, [speakers]);
 
   // --- Service People (managed in this tab) ---
@@ -100,7 +108,8 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
         id: p.id,
         name: `${p.firstName || ""} ${p.lastName || ""}`.trim(),
       }))
-      .filter((x) => x.name.length > 0);
+      .filter((x) => x.name.length > 0)
+      .sort(sortByNameDesc);
   }, [servicePeople]);
 
   function addServicePerson() {
@@ -147,7 +156,6 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
 
   // --- Calendar auto-fill helpers ---
   function calendarKeyForSlot(dateISO, templateId, slotId) {
-    // Which Calendar serviceType should populate which Services slot
     if (slotId === "teacher") {
       if (templateId === "WED_NIGHT") return `${dateISO}-wednesdayEvening`;
       if (templateId === "SUN_MORNING") return `${dateISO}-sundayMorning`;
@@ -172,15 +180,12 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
     return speakerOptions.some((x) => String(x.id) === String(id));
   }
 
-  // Keep assignments updated when user switches date/template
-  // + Auto-fill Teacher / Communion from Calendar (only if blank)
   React.useEffect(() => {
     const base = currentPlan?.assignments || {};
 
     setAssignments(() => {
       const next = { ...base };
 
-      // Auto-fill teacher / communion only if empty
       const teacherFromCal = scheduledSpeakerIdFromCalendar(date, templateId, "teacher");
       if (!next.teacher && teacherFromCal && isValidSpeakerId(teacherFromCal)) {
         next.teacher = String(teacherFromCal);
@@ -201,14 +206,6 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
 
   function setSlot(slotId, personId) {
     setAssignments((prev) => ({ ...prev, [slotId]: personId }));
-  }
-
-  function speakerNameById(id) {
-    const foundSpeaker = speakerOptions.find((x) => String(x.id) === String(id));
-    if (foundSpeaker) return foundSpeaker.name;
-
-    const foundServicePerson = servicePeopleOptions.find((x) => String(x.id) === String(id));
-    return foundServicePerson ? foundServicePerson.name : "";
   }
 
   function saveCurrentPlan() {
@@ -353,6 +350,24 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
         <button className="btn-primary" type="button" onClick={saveCurrentPlan}>💾 Save</button>
         <button className="btn-secondary" type="button" onClick={copyMostRecentSameType}>📋 Copy Most Recent</button>
 
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={addServicePerson}
+          title="Add a person to the Service People list"
+        >
+          ➕ Add Service Person
+        </button>
+
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={() => setShowServicePeople((v) => !v)}
+          title="Show/hide Service People management"
+        >
+          {showServicePeople ? "▼ Hide Service People" : "▶ Manage Service People"}
+        </button>
+
         <div style={{ marginLeft: "auto", color: "#666", fontWeight: 800 }}>
           Unfilled:{" "}
           <span style={{ color: unfilledCount ? "#dc2626" : "#065f46" }}>
@@ -361,55 +376,57 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
         </div>
       </div>
 
-      {/* Service People manager */}
-      <div className="services-block" style={{ marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ fontWeight: 900, color: "#1e3a5f" }}>Service People</div>
-          <button
-            type="button"
-            onClick={addServicePerson}
-            className="btn-secondary"
-            title="Add person"
-            style={{ fontSize: 18, padding: "6px 12px", lineHeight: 1 }}
-          >
-            +
-          </button>
+      {/* Service People manager (hidden by default) */}
+      {showServicePeople && (
+        <div className="services-block" style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ fontWeight: 900, color: "#1e3a5f" }}>Service People</div>
+            <button
+              type="button"
+              onClick={addServicePerson}
+              className="btn-secondary"
+              title="Add person"
+              style={{ fontSize: 18, padding: "6px 12px", lineHeight: 1 }}
+            >
+              +
+            </button>
+          </div>
+
+          {servicePeopleOptions.length === 0 ? (
+            <div style={{ color: "#666" }}>
+              No Service People yet — add some names above.
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {servicePeopleOptions.map((p) => (
+                <div key={p.id} className="pill">
+                  <span style={{ fontWeight: 800, color: "#1e3a5f" }}>{p.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeServicePerson(p.id)}
+                    style={{ border: "none", background: "none", cursor: "pointer", color: "#dc2626", fontWeight: 900 }}
+                    title="Remove"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {speakerOptions.length === 0 && (
+            <div style={{ marginTop: 10, padding: 10, borderRadius: 12, background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412" }}>
+              Note: Teacher + Communion dropdowns pull from the <strong>Speakers</strong> list. Add speakers in the Speakers tab if you want those filled.
+            </div>
+          )}
         </div>
+      )}
 
-        {servicePeopleOptions.length === 0 ? (
-          <div style={{ color: "#666" }}>
-            No Service People yet — add some names above.
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {servicePeopleOptions.map((p) => (
-              <div key={p.id} className="pill">
-                <span style={{ fontWeight: 800, color: "#1e3a5f" }}>{p.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removeServicePerson(p.id)}
-                  style={{ border: "none", background: "none", cursor: "pointer", color: "#dc2626", fontWeight: 900 }}
-                  title="Remove"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {speakerOptions.length === 0 && (
-          <div style={{ marginTop: 10, padding: 10, borderRadius: 12, background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412" }}>
-            Note: Teacher + Communion dropdowns pull from the <strong>Speakers</strong> list. Add speakers in the Speakers tab if you want those filled.
-          </div>
-        )}
-      </div>
-
-      {/* Assignments - compact single block */}
+      {/* Assignments */}
       <div className="services-block">
         <div className="slots-grid">
           {template.slots.map((slot) => {
-            const useSpeakers = isSpeakerSlot(slot.id);
+            const useSpeakers = slot.id === "teacher" || slot.id === "communion";
             const options = useSpeakers ? speakerOptions : servicePeopleOptions;
             const disabled = options.length === 0;
 
@@ -452,7 +469,7 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
         </div>
       </div>
 
-      {/* Saved Plans toggle (reduces scrolling) */}
+      {/* Saved Plans toggle */}
       <div style={{ marginTop: 14 }}>
         <button
           className="btn-secondary"
