@@ -203,14 +203,6 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
     setAssignments((prev) => ({ ...prev, [slotId]: personId }));
   }
 
-  function clearSlot(slotId) {
-    setAssignments((prev) => {
-      const next = { ...prev };
-      delete next[slotId];
-      return next;
-    });
-  }
-
   function speakerNameById(id) {
     const foundSpeaker = speakerOptions.find((x) => String(x.id) === String(id));
     if (foundSpeaker) return foundSpeaker.name;
@@ -296,7 +288,7 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
 
         .slot-row {
           display: grid;
-          grid-template-columns: 1fr minmax(180px, 240px) auto;
+          grid-template-columns: 1fr minmax(180px, 240px);
           gap: 8px;
           align-items: center;
           padding: 8px;
@@ -315,13 +307,6 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
         .slot-select {
           padding: 8px !important;
           height: 36px;
-        }
-
-        .slot-clear {
-          padding: 8px 10px;
-          height: 36px;
-          line-height: 1;
-          white-space: nowrap;
         }
 
         .services-footer {
@@ -449,14 +434,6 @@ export default function ServicesTab({ servicePeople, setServicePeople, speakers,
                     </option>
                   ))}
                 </select>
-
-                <button
-                  className="btn-secondary slot-clear"
-                  type="button"
-                  onClick={() => clearSlot(slot.id)}
-                >
-                  Clear
-                </button>
               </div>
             );
           })}
