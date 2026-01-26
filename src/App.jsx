@@ -298,7 +298,13 @@ export default function ChurchScheduleApp() {
         {view === 'speakers' ? (
           <SpeakersTab speakers={speakers} userRole={userRole} setEditingSpeaker={setEditingSpeaker} setShowAddSpeaker={setShowAddSpeaker} setSpeakers={setSpeakers} />
         ) : view === 'services' ? (
-          <ServicesTab servicePeople={servicePeople} setServicePeople={setServicePeople} speakers={speakers} />
+          <ServicesTab
+  servicePeople={servicePeople}
+  setServicePeople={setServicePeople}
+  speakers={speakers}
+  schedule={schedule}
+/>
+
         ) : (
           <CalendarTab selectedMonth={selectedMonth} schedule={schedule} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
         )}
