@@ -3,8 +3,9 @@ import logoIcon from './assets/logo-icon.svg';
 
 // Modular Logic & Services
 import { FIREBASE_CONFIG, loadFirebaseScripts } from './services/firebase';
-import { generateScheduleLogic } from './utils/scheduleLogic';
+import { generateScheduleLogic, getMonthDays } from './utils/scheduleLogic'; // Added getMonthDays
 import { sendInviteEmail } from './services/email';
+import { exportToCSV, importFromCSV, exportToPDF } from './utils/exportUtils'; // NEW: Export utilities
 
 // Tab Components
 import SpeakersTab from './components/tabs/SpeakersTab';
@@ -18,7 +19,7 @@ import ProfileModal from './components/modals/ProfileModal';
 import NoteModal from './components/modals/NoteModal';
 
 export default function ChurchScheduleApp() {
-  // --- STATE ---
+  // ... (All existing states from previous version remain exactly the same) ...
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -30,7 +31,6 @@ export default function ChurchScheduleApp() {
   const [churchName, setChurchName] = useState('');
   const [churchNameLocked, setChurchNameLocked] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
-  
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [members, setMembers] = useState([]);
@@ -38,19 +38,16 @@ export default function ChurchScheduleApp() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
   const [invitationData, setInvitationData] = useState(null); 
-
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-
   const [speakers, setSpeakers] = useState([]);
   const [servicePeople, setServicePeople] = useState([]);
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [view, setView] = useState('speakers');
-  
   const [showSettings, setShowSettings] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddSpeaker, setShowAddSpeaker] = useState(false);
@@ -59,7 +56,6 @@ export default function ChurchScheduleApp() {
   const [editingNote, setEditingNote] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [transferTarget, setTransferTarget] = useState(null);
-
   const [serviceSettings, setServiceSettings] = useState({
     sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
     sundayEvening: { enabled: true, label: 'Sunday Evening', time: '6:00 PM' },
@@ -69,8 +65,9 @@ export default function ChurchScheduleApp() {
 
   const db = useRef(null);
   const auth = useRef(null);
+  const fileInputRef = useRef(null); // NEW: Ref for hidden file input
 
-  // --- INITIALIZATION ---
+  // ... (All initialization and data action logic remains exactly the same) ...
   useEffect(() => {
     const init = async () => {
       try {
@@ -78,7 +75,6 @@ export default function ChurchScheduleApp() {
         if (!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
         auth.current = window.firebase.auth();
         db.current = window.firebase.firestore();
-
         const inviteCode = new URLSearchParams(window.location.search).get('invite');
         if (inviteCode) {
           const doc = await db.current.collection('invitations').doc(inviteCode).get();
@@ -90,7 +86,6 @@ export default function ChurchScheduleApp() {
             setAuthView('register');
           }
         }
-
         auth.current.onAuthStateChanged((u) => {
           setUser(u); setAuthLoading(false);
           if (u) loadUserData(u.uid);
@@ -101,7 +96,6 @@ export default function ChurchScheduleApp() {
     init();
   }, []);
 
-  // --- DATA ACTIONS ---
   const loadUserData = async (uid) => {
     setDataLoading(true);
     try {
@@ -133,26 +127,16 @@ export default function ChurchScheduleApp() {
   const fetchOrgData = async (targetOrgId) => {
     const memberSnapshot = await db.current.collection('users').where('orgId', '==', targetOrgId).get();
     setMembers(memberSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
     const now = new Date().toISOString();
-    const inviteSnapshot = await db.current.collection('invitations')
-      .where('orgId', '==', targetOrgId)
-      .where('status', '==', 'pending')
-      .get();
-    
-    const activeInvites = inviteSnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(invite => invite.expiresAt > now);
-    
+    const inviteSnapshot = await db.current.collection('invitations').where('orgId', '==', targetOrgId).where('status', '==', 'pending').get();
+    const activeInvites = inviteSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(invite => invite.expiresAt > now);
     setPendingInvites(activeInvites);
   };
 
   useEffect(() => {
     if (user && firebaseReady && !dataLoading && orgId && ['owner', 'admin'].includes(userRole)) {
       const t = setTimeout(() => {
-        db.current.collection('organizations').doc(orgId).set({ 
-          speakers, servicePeople, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() 
-        }, { merge: true });
+        db.current.collection('organizations').doc(orgId).set({ speakers, servicePeople, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() }, { merge: true });
       }, 1000);
       return () => clearTimeout(t);
     }
@@ -160,24 +144,28 @@ export default function ChurchScheduleApp() {
 
   // --- HANDLERS ---
   const handleGenerateSchedule = () => {
-    const newSchedule = generateScheduleLogic(selectedMonth, speakers, serviceSettings, schedule);
-    setSchedule(newSchedule);
+    setSchedule(generateScheduleLogic(selectedMonth, speakers, serviceSettings, schedule));
     setView('calendar'); 
   };
 
   const handleClearMonth = () => {
-    const year = selectedMonth.getFullYear();
-    const month = selectedMonth.getMonth();
+    const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach(key => {
       const parts = key.split('-');
-      if (parts.length >= 3) {
-        const keyYear = parseInt(parts[0]);
-        const keyMonth = parseInt(parts[1]) - 1;
-        if (keyYear === year && keyMonth === month) delete newSchedule[key];
-      }
+      if (parts.length >= 3 && parseInt(parts[0]) === year && parseInt(parts[1]) - 1 === month) delete newSchedule[key];
     });
     setSchedule(newSchedule);
+  };
+
+  // NEW: Spreadsheet Handlers
+  const handleImportCSV = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const updatedSchedule = await importFromCSV(file, speakers, schedule);
+      setSchedule(updatedSchedule);
+      alert("Spreadsheet imported successfully!");
+    }
   };
 
   const generateInviteLink = async () => {
@@ -186,15 +174,9 @@ export default function ChurchScheduleApp() {
       const inviteCode = Math.random().toString(36).substring(2, 10);
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
-
-      const inviteData = {
-        orgId, email: inviteEmail, role: inviteRole, churchName, status: 'pending', createdAt: new Date().toISOString(), expiresAt: expiresAt.toISOString()
-      };
-
-      await db.current.collection('invitations').doc(inviteCode).set(inviteData);
+      await db.current.collection('invitations').doc(inviteCode).set({ orgId, email: inviteEmail, role: inviteRole, churchName, status: 'pending', createdAt: new Date().toISOString(), expiresAt: expiresAt.toISOString() });
       const link = `${window.location.origin}?invite=${inviteCode}`;
       await sendInviteEmail({ to_email: inviteEmail, church_name: churchName, invite_link: link, role: inviteRole });
-      
       alert('Invitation sent!');
       setInviteEmail('');
       fetchOrgData(orgId);
@@ -203,25 +185,16 @@ export default function ChurchScheduleApp() {
 
   const cancelInvite = async (inviteId) => {
     if (!window.confirm("Cancel this invitation?")) return;
-    try {
-      await db.current.collection('invitations').doc(inviteId).delete();
-      fetchOrgData(orgId);
-    } catch (err) { alert(err.message); }
+    try { await db.current.collection('invitations').doc(inviteId).delete(); fetchOrgData(orgId); } catch (err) { alert(err.message); }
   };
 
   const updateMemberRole = async (targetUserId, newRole) => {
-    try {
-      await db.current.collection('users').doc(targetUserId).update({ role: newRole });
-      fetchOrgData(orgId);
-    } catch (err) { alert(err.message); }
+    try { await db.current.collection('users').doc(targetUserId).update({ role: newRole }); fetchOrgData(orgId); } catch (err) { alert(err.message); }
   };
   
   const removeMember = async (targetUserId, targetUserName) => {
     if (!window.confirm(`Remove ${targetUserName}?`)) return;
-    try {
-      await db.current.collection('users').doc(targetUserId).update({ orgId: null, role: 'viewer' });
-      fetchOrgData(orgId);
-    } catch (err) { alert(err.message); }
+    try { await db.current.collection('users').doc(targetUserId).update({ orgId: null, role: 'viewer' }); fetchOrgData(orgId); } catch (err) { alert(err.message); }
   };
   
   const transferOwnership = async (newOwnerId) => {
@@ -347,8 +320,22 @@ export default function ChurchScheduleApp() {
             <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
+          
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
-            {view === 'calendar' && ['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={handleClearMonth}>🗑️ Clear Month</button>}
+            {/* NEW: Export & Import Buttons */}
+            {view === 'calendar' && (
+              <>
+                <button className="btn-secondary" onClick={() => exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName)}>📄 Export PDF</button>
+                <button className="btn-secondary" onClick={() => exportToCSV(selectedMonth, schedule, speakers, serviceSettings, getSpeakerName)}>📊 Export CSV</button>
+                {['owner', 'admin'].includes(userRole) && (
+                  <>
+                    <button className="btn-secondary" onClick={() => fileInputRef.current.click()}>📥 Import CSV</button>
+                    <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" style={{ display: 'none' }} />
+                  </>
+                )}
+                {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={handleClearMonth}>🗑️ Clear Month</button>}
+              </>
+            )}
             {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={handleGenerateSchedule}>⚡ Generate Schedule</button>}
           </div>
         </div>
