@@ -9,6 +9,8 @@ export default function SettingsModal({
   userRole, 
   user, 
   members, 
+  pendingInvites, // NEW Prop
+  cancelInvite, // NEW Prop
   inviteEmail, 
   setInviteEmail, 
   inviteRole, 
@@ -60,7 +62,7 @@ export default function SettingsModal({
         <div style={{ marginTop: '32px', borderTop: '2px solid #eee', paddingTop: '20px' }}>
           <h4 style={{ color: '#1e3a5f', marginBottom: '16px' }}>👥 Organization Members</h4>
           
-          {/* INVITE SECTION (Visible to Owners) */}
+          {/* INVITE SECTION */}
           {userRole === 'owner' && (
             <div style={{ background: '#f8f6f3', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
               <p style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Invite a New Member</p>
@@ -87,7 +89,40 @@ export default function SettingsModal({
             </div>
           )}
 
-          {/* MEMBER LIST */}
+          {/* NEW: PENDING INVITATIONS LIST */}
+          {pendingInvites.length > 0 && (
+            <div style={{ marginBottom: '20px' }}>
+              <h5 style={{ fontSize: '12px', color: '#666', textTransform: 'uppercase', marginBottom: '10px' }}>Pending Invites</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {pendingInvites.map((invite) => (
+                  <div key={invite.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#fff7ed', borderRadius: '8px', border: '1px solid #ffedd5' }}>
+                    <div>
+                      <div style={{ fontWeight: '600', fontSize: '14px' }}>{invite.email}</div>
+                      <div style={{ fontSize: '11px', color: '#9a3412' }}>
+                        Expires: {new Date(invite.expiresAt).toLocaleDateString()} ({invite.role})
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={() => { setInviteEmail(invite.email); setInviteRole(invite.role); generateInviteLink(); }}
+                        style={{ background: 'none', border: 'none', color: '#1e3a5f', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                      >
+                        Resend
+                      </button>
+                      <button 
+                        onClick={() => cancelInvite(invite.id)} 
+                        style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ACTIVE MEMBERS LIST */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {members.map((member) => (
               <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', borderBottom: '1px solid #eee' }}>
@@ -96,7 +131,6 @@ export default function SettingsModal({
                   <div style={{ fontSize: '12px', color: '#666' }}>{member.email}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {/* ROLE SELECT: Visible if user is owner OR (admin managing a non-owner) */}
                   {(userRole === 'owner' || (userRole === 'admin' && member.role !== 'owner')) && member.id !== user.uid ? (
                     <select 
                       value={member.role} 
@@ -104,14 +138,13 @@ export default function SettingsModal({
                       style={{ padding: '4px', fontSize: '12px' }}
                     >
                       <option value="viewer">Viewer</option>
-                      <option value="editor">Editor</option>
+                      <option value="standard">Standard</option>
                       <option value="admin">Admin</option>
                     </select>
                   ) : ( 
                     <span className="badge">{member.role}</span> 
                   )}
                   
-                  {/* REMOVE BUTTON */}
                   {((userRole === 'owner' && member.role !== 'owner') || 
                     (userRole === 'admin' && !['owner', 'admin'].includes(member.role))) && (
                     <button 
@@ -122,7 +155,6 @@ export default function SettingsModal({
                     </button>
                   )}
                   
-                  {/* TRANSFER OWNERSHIP BUTTON */}
                   {userRole === 'owner' && member.id !== user.uid && (
                     <button 
                       onClick={() => { setTransferTarget(member); onClose(); }} 
