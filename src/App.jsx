@@ -36,6 +36,7 @@ export default function ChurchScheduleApp() {
   const [members, setMembers] = useState([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
+  const [invitationData, setInvitationData] = useState(null); // Track invitation metadata
 
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
@@ -81,7 +82,9 @@ export default function ChurchScheduleApp() {
         if (inviteCode) {
           const doc = await db.current.collection('invitations').doc(inviteCode).get();
           if (doc.exists) {
-            setChurchName(doc.data().churchName);
+            const data = doc.data();
+            setInvitationData(data); // Save the org and role info
+            setChurchName(data.churchName);
             setChurchNameLocked(true);
             setAuthView('register');
           }
@@ -143,6 +146,31 @@ export default function ChurchScheduleApp() {
   }, [speakers, servicePeople, schedule, serviceSettings, churchName]);
 
   // --- HANDLERS ---
+  const handleGenerateSchedule = () => {
+    const newSchedule = generateScheduleLogic(selectedMonth, speakers, serviceSettings, schedule);
+    setSchedule(newSchedule);
+    setView('calendar'); // switch to calendar view after generation
+  };
+
+  const handleClearMonth = () => {
+    const year = selectedMonth.getFullYear();
+    const month = selectedMonth.getMonth();
+    const newSchedule = { ...schedule };
+    
+    Object.keys(newSchedule).forEach(key => {
+      // Key format is YYYY-MM-DD-serviceType
+      const parts = key.split('-');
+      if (parts.length >= 3) {
+        const keyYear = parseInt(parts[0]);
+        const keyMonth = parseInt(parts[1]) - 1; // JS months are 0-indexed
+        if (keyYear === year && keyMonth === month) {
+          delete newSchedule[key];
+        }
+      }
+    });
+    setSchedule(newSchedule);
+  };
+
   const generateInviteLink = async () => {
     if (!orgId || !inviteEmail) return alert("Enter an email.");
     try {
@@ -199,13 +227,27 @@ export default function ChurchScheduleApp() {
   };
 
   const handleLogin = (e) => { e.preventDefault(); auth.current.signInWithEmailAndPassword(authEmail, authPassword).catch(err => setAuthError(err.message)); };
+  
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
+      const targetOrgId = invitationData?.orgId || ('org_' + Math.random().toString(36).substring(2, 12));
+      const targetRole = invitationData?.role || 'owner';
+
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
-      const finalOrgId = orgId || ('org_' + r.user.uid);
-      if (!orgId) await db.current.collection('organizations').doc(finalOrgId).set({ churchName, ownerUid: r.user.uid, createdAt: new Date().toISOString() });
-      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, orgId: finalOrgId, role: 'owner' });
+      await r.user.updateProfile({ displayName: authName });
+
+      if (!invitationData) {
+        await db.current.collection('organizations').doc(targetOrgId).set({ 
+          churchName, ownerUid: r.user.uid, createdAt: new Date().toISOString() 
+        });
+      }
+
+      await db.current.collection('users').doc(r.user.uid).set({ 
+        email: authEmail, name: authName, orgId: targetOrgId, role: targetRole, createdAt: new Date().toISOString() 
+      });
+      
+      window.location.href = window.location.origin;
     } catch (err) { setAuthError(err.message); }
   };
 
@@ -227,6 +269,7 @@ export default function ChurchScheduleApp() {
           <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
           <button className="btn-primary" style={{width: '100%', padding: '12px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'}} type="submit">{authView === 'login' ? 'Login' : 'Sign Up'}</button>
+          {authError && <p style={{color: 'red', fontSize: '11px', marginTop: '10px'}}>{authError}</p>}
         </form>
         <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ border: 'none', background: 'none', marginTop: '12px', color: '#1e3a5f', cursor: 'pointer' }}>
           {authView === 'login' ? "Need an account? Sign Up" : "Back to Login"}
@@ -252,12 +295,11 @@ export default function ChurchScheduleApp() {
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
       `}</style>
 
-      {/* HEADER */}
       <header style={{ background: '#f3f4f6', padding: '24px 0', borderBottom: '1px solid #e5e7eb', color: '#1e3a5f' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ flex: '1 1 300px', display: 'flex', alignItems: 'center', gap: '20px' }}>
             <img src={logoIcon} alt="Logo Icon" style={{ height: '52px' }} />
-            <div><h1 style={{ margin: 0, fontSize: 'clamp(20px, 4vw, 28px)', fontWeight: '800' }}>Church of Christ Collab App</h1></div>
+            <h1 style={{ margin: 0, fontSize: 'clamp(20px, 4vw, 28px)', fontWeight: '800' }}>Church of Christ Collab App</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
@@ -286,31 +328,24 @@ export default function ChurchScheduleApp() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>← Prev</button>
-            <h2 style={{ color: '#1e3a5f', margin: 0 }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
+            <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: 'clamp(18px, 4vw, 24px)' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2>
             <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>Next →</button>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
-            {view === 'calendar' && ['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={() => setSchedule({})}>🗑️ Clear Month</button>}
-            {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={() => setSchedule(generateScheduleLogic(selectedMonth, speakers, serviceSettings, schedule))}>⚡ Generate Schedule</button>}
+            {view === 'calendar' && ['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={handleClearMonth}>🗑️ Clear Month</button>}
+            {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={handleGenerateSchedule}>⚡ Generate Schedule</button>}
           </div>
         </div>
 
         {view === 'speakers' ? (
           <SpeakersTab speakers={speakers} userRole={userRole} setEditingSpeaker={setEditingSpeaker} setShowAddSpeaker={setShowAddSpeaker} setSpeakers={setSpeakers} />
         ) : view === 'services' ? (
-          <ServicesTab
-  servicePeople={servicePeople}
-  setServicePeople={setServicePeople}
-  speakers={speakers}
-  schedule={schedule}
-/>
-
+          <ServicesTab servicePeople={servicePeople} setServicePeople={setServicePeople} speakers={speakers} schedule={schedule} />
         ) : (
           <CalendarTab selectedMonth={selectedMonth} schedule={schedule} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
         )}
       </main>
 
-      {/* MODALS */}
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} inviteEmail={inviteEmail} setInviteEmail={setInviteEmail} inviteRole={inviteRole} setInviteRole={setInviteRole} generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} setTransferTarget={setTransferTarget} />
       <SpeakerModal isOpen={showAddSpeaker} onClose={() => setShowAddSpeaker(false)} editingSpeaker={editingSpeaker} setEditingSpeaker={setEditingSpeaker} speakers={speakers} setSpeakers={setSpeakers} />
       <ProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} userRole={userRole} churchName={churchName} setChurchName={setChurchName} userFirstName={userFirstName} setUserFirstName={setUserFirstName} userLastName={userLastName} setUserLastName={setUserLastName} newEmail={newEmail} setNewEmail={setNewEmail} newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} handleUpdateProfile={handleUpdateProfile} />
