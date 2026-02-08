@@ -1,6 +1,22 @@
 // src/components/tabs/SpeakersTab.jsx
 import React from 'react';
 
+// Professional Pencil Icon
+const EditIcon = () => (
+  <svg 
+    width="14" 
+    height="14" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2.5" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+  </svg>
+);
+
 export default function SpeakersTab({ 
   speakers, 
   userRole, 
@@ -52,13 +68,12 @@ export default function SpeakersTab({
               
               {['owner', 'admin'].includes(userRole) && (
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {/* Edit Indicator: Visual cue that info can be modified */}
                   <button 
                     className="btn-secondary" 
-                    style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }} 
+                    style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }} 
                     onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}
                   >
-                    ✏️ Edit Info
+                    <EditIcon /> Edit Info
                   </button>
                   <button 
                     style={{ padding: '6px 12px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }} 
