@@ -1,20 +1,9 @@
 // src/components/tabs/SpeakersTab.jsx
 import React from 'react';
 
-// Professional Pencil Icon
+// Professional SVG Pencil Icon
 const EditIcon = () => (
-  <svg 
-    width="14" 
-    height="14" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2.5" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-  >
-    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-  </svg>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
 );
 
 export default function SpeakersTab({ 
@@ -26,7 +15,7 @@ export default function SpeakersTab({
   serviceSettings 
 }) {
   const handleRemove = (id) => {
-    if (window.confirm("Are you sure you want to remove this speaker?")) {
+    if (window.confirm("Remove this speaker?")) {
       setSpeakers(speakers.filter(sp => sp.id !== id));
     }
   };
@@ -54,40 +43,29 @@ export default function SpeakersTab({
       </div>
 
       {speakers.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', color: '#666' }}>
-          No speakers added yet. Click "+ Add Speaker" to get started.
-        </div>
+        <div className="card" style={{ textAlign: 'center', color: '#666' }}>No speakers found.</div>
       ) : (
         speakers.map(s => (
           <div key={s.id} className="card" style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #eee', paddingBottom: '12px', marginBottom: '12px' }}>
               <div>
                 <h3 style={{ margin: 0, color: '#1e3a5f' }}>{s.firstName} {s.lastName}</h3>
-                {s.priority > 0 && <span className="service-badge badge-priority" style={{ marginTop: '4px' }}>★ Priority {s.priority}</span>}
+                {s.priority > 0 && <span className="service-badge badge-priority" style={{ marginTop: '8px' }}>★ Priority {s.priority}</span>}
               </div>
               
               {['owner', 'admin'].includes(userRole) && (
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    className="btn-secondary" 
-                    style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }} 
-                    onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}
-                  >
+                  <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }} onClick={() => { setEditingSpeaker({...s}); setShowAddSpeaker(true); }}>
                     <EditIcon /> Edit Info
                   </button>
-                  <button 
-                    style={{ padding: '6px 12px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }} 
-                    onClick={() => handleRemove(s.id)}
-                  >
-                    Remove
-                  </button>
+                  <button style={{ padding: '6px 12px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontFamily: 'Outfit' }} onClick={() => handleRemove(s.id)}>Remove</button>
                 </div>
               )}
             </div>
 
             <div>
-              <strong style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Availability & Times</strong>
-              <div style={{ marginBottom: '12px' }}>
+              <strong style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Availability & Times</strong>
+              <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                 {s.availability?.sundayMorning && (
                   <span className="service-badge" style={{ background: '#dbeafe', color: '#1e40af' }}>
                     Sunday Morning{getTimeLabel('sundayMorning')}
@@ -111,9 +89,9 @@ export default function SpeakersTab({
               </div>
               
               {s.repeatRules?.length > 0 && (
-                <div style={{ fontSize: '13px', color: '#666', background: '#f9fafb', padding: '8px', borderRadius: '8px' }}>
+                <div style={{ fontSize: '13px', color: '#666', background: '#f9fafb', padding: '12px', borderRadius: '12px', marginTop: '8px' }}>
                   <strong>Repeat Rules:</strong> {s.repeatRules.map((r, i) => (
-                    <span key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', padding: '2px 8px', borderRadius: '4px', marginRight: '4px', display: 'inline-block', marginTop: '2px' }}>
+                    <span key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', padding: '2px 8px', borderRadius: '6px', marginRight: '6px', display: 'inline-block', marginTop: '4px' }}>
                       {r.serviceType} ({r.pattern})
                     </span>
                   ))}
