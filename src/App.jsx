@@ -34,7 +34,7 @@ export default function ChurchScheduleApp() {
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [members, setMembers] = useState([]);
-  const [pendingInvites, setPendingInvites] = useState([]); // NEW: Pending invites state
+  const [pendingInvites, setPendingInvites] = useState([]); 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
   const [invitationData, setInvitationData] = useState(null); 
@@ -131,18 +131,15 @@ export default function ChurchScheduleApp() {
   };
 
   const fetchOrgData = async (targetOrgId) => {
-    // Fetch active members
     const memberSnapshot = await db.current.collection('users').where('orgId', '==', targetOrgId).get();
     setMembers(memberSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-    // Fetch pending invites (excluding expired ones)
     const now = new Date().toISOString();
     const inviteSnapshot = await db.current.collection('invitations')
       .where('orgId', '==', targetOrgId)
       .where('status', '==', 'pending')
       .get();
     
-    // Filter out expired invites in code (Firestore doesn't support complex string filtering here without indexes)
     const activeInvites = inviteSnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() }))
       .filter(invite => invite.expiresAt > now);
@@ -188,7 +185,7 @@ export default function ChurchScheduleApp() {
     try {
       const inviteCode = Math.random().toString(36).substring(2, 10);
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // 30-day expiration
+      expiresAt.setDate(expiresAt.getDate() + 30);
 
       const inviteData = {
         orgId,
@@ -268,27 +265,21 @@ export default function ChurchScheduleApp() {
       if (invitationData && invitationData.expiresAt < now) {
         return setAuthError("This invitation has expired.");
       }
-
       const targetOrgId = invitationData?.orgId || ('org_' + Math.random().toString(36).substring(2, 12));
       const targetRole = invitationData?.role || 'owner';
-
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
       await r.user.updateProfile({ displayName: authName });
-
       if (!invitationData) {
         await db.current.collection('organizations').doc(targetOrgId).set({ 
           churchName, ownerUid: r.user.uid, createdAt: new Date().toISOString() 
         });
       } else {
-        // Mark invite as used
         const inviteCode = new URLSearchParams(window.location.search).get('invite');
         await db.current.collection('invitations').doc(inviteCode).update({ status: 'accepted' });
       }
-
       await db.current.collection('users').doc(r.user.uid).set({ 
         email: authEmail, name: authName, orgId: targetOrgId, role: targetRole, createdAt: new Date().toISOString() 
-      });
-      
+      }); 
       window.location.href = window.location.origin;
     } catch (err) { setAuthError(err.message); }
   };
@@ -379,7 +370,7 @@ export default function ChurchScheduleApp() {
         </div>
 
         {view === 'speakers' ? (
-          <SpeakersTab speakers={speakers} userRole={userRole} setEditingSpeaker={setEditingSpeaker} setShowAddSpeaker={setShowAddSpeaker} setSpeakers={setSpeakers} />
+          <SpeakersTab speakers={speakers} userRole={userRole} setEditingSpeaker={setEditingSpeaker} setShowAddSpeaker={setShowAddSpeaker} setSpeakers={setSpeakers} serviceSettings={serviceSettings} />
         ) : view === 'services' ? (
           <ServicesTab servicePeople={servicePeople} setServicePeople={setServicePeople} speakers={speakers} schedule={schedule} />
         ) : (
@@ -391,7 +382,7 @@ export default function ChurchScheduleApp() {
         isOpen={showSettings} onClose={() => setShowSettings(false)} 
         serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} 
         userRole={userRole} user={user} members={members} 
-        pendingInvites={pendingInvites} cancelInvite={cancelInvite} // NEW Props
+        pendingInvites={pendingInvites} cancelInvite={cancelInvite} 
         inviteEmail={inviteEmail} setInviteEmail={setInviteEmail} inviteRole={inviteRole} setInviteRole={setInviteRole} 
         generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} setTransferTarget={setTransferTarget} 
       />
