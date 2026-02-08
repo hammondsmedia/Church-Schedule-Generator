@@ -2,6 +2,23 @@
 import React from 'react';
 import { getMonthDays } from '../../utils/scheduleLogic';
 
+// Professional Pencil Icon
+const EditIcon = () => (
+  <svg 
+    width="14" 
+    height="14" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2.5" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    style={{ opacity: 0.7 }}
+  >
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+  </svg>
+);
+
 export default function CalendarTab({ 
   selectedMonth, 
   schedule, 
@@ -13,7 +30,6 @@ export default function CalendarTab({
 }) {
   const days = getMonthDays(selectedMonth);
 
-  // Helper to get time label
   const getTimeLabel = (type) => {
     const setting = serviceSettings[type];
     return setting && setting.enabled && setting.time ? `${setting.time} — ` : '';
@@ -36,7 +52,6 @@ export default function CalendarTab({
             <div key={k} style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
               <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e3a5f' }}>{d.date.getDate()}</div>
               
-              {/* Sunday Morning Slot */}
               {serviceSettings.sundayMorning.enabled && (
                 <button 
                   className={'calendar-bar ' + (sm ? '' : 'bar-empty')} 
@@ -45,13 +60,12 @@ export default function CalendarTab({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{getTimeLabel('sundayMorning')}{sm ? getSpeakerName(sm.speakerId) : '+ Assign'}</span>
-                    {sm && <span style={{ opacity: 0.5 }}>✏️</span>}
+                    {sm && <EditIcon />}
                   </div>
                   {sm?.note && <span style={{ display: 'block', fontSize: '11px', opacity: 0.8, fontStyle: 'italic', marginTop: '2px' }}>Topic: {sm.note}</span>}
                 </button>
               )}
 
-              {/* Communion Slot */}
               {serviceSettings.communion.enabled && (
                 <button 
                   className={'calendar-bar ' + (c ? '' : 'bar-empty')} 
@@ -60,13 +74,12 @@ export default function CalendarTab({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{getTimeLabel('communion')}{c ? getSpeakerName(c.speakerId) : '+ Assign'}</span>
-                    {c && <span style={{ opacity: 0.5 }}>✏️</span>}
+                    {c && <EditIcon />}
                   </div>
                   {c?.note && <span style={{ display: 'block', fontSize: '11px', opacity: 0.8, fontStyle: 'italic', marginTop: '2px' }}>Note: {c.note}</span>}
                 </button>
               )}
 
-              {/* Sunday Evening Slot */}
               {serviceSettings.sundayEvening.enabled && (
                 <button 
                   className={'calendar-bar ' + (se ? '' : 'bar-empty')} 
@@ -75,7 +88,7 @@ export default function CalendarTab({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{getTimeLabel('sundayEvening')}{se ? getSpeakerName(se.speakerId) : '+ Assign'}</span>
-                    {se && <span style={{ opacity: 0.5 }}>✏️</span>}
+                    {se && <EditIcon />}
                   </div>
                   {se?.note && <span style={{ display: 'block', fontSize: '11px', opacity: 0.8, fontStyle: 'italic', marginTop: '2px' }}>Topic: {se.note}</span>}
                 </button>
@@ -104,7 +117,7 @@ export default function CalendarTab({
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>{getTimeLabel('wednesdayEvening')}{w ? getSpeakerName(w.speakerId) : '+ Assign'}</span>
-                  {w && <span style={{ opacity: 0.5 }}>✏️</span>}
+                  {w && <EditIcon />}
                 </div>
                 {w?.note && <span style={{ display: 'block', fontSize: '11px', opacity: 0.8, fontStyle: 'italic', marginTop: '2px' }}>Topic: {w.note}</span>}
               </button>
