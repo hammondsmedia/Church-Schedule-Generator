@@ -169,7 +169,7 @@ export default function ChurchScheduleApp() {
   };
 
   const handleClearMonth = () => {
-    if (!window.confirm("Clear all assignments for this month?")) return;
+    if (!window.confirm("Are you sure you want to clear this month's schedule?")) return;
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach(key => {
@@ -186,7 +186,7 @@ export default function ChurchScheduleApp() {
       const updatedSchedule = await importFromCSV(file, speakers, schedule);
       setSchedule(updatedSchedule);
       setShowActions(false);
-      alert("Imported successfully!");
+      alert("Spreadsheet imported successfully!");
     }
   };
 
@@ -206,7 +206,7 @@ export default function ChurchScheduleApp() {
   };
 
   const cancelInvite = async (inviteId) => {
-    if (!window.confirm("Cancel?")) return;
+    if (!window.confirm("Cancel invitation?")) return;
     await db.current.collection('invitations').doc(inviteId).delete();
     fetchOrgData(orgId);
   };
@@ -264,19 +264,18 @@ export default function ChurchScheduleApp() {
 
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <style>{`* { box-sizing: border-box; font-family: 'Outfit', sans-serif; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; }`}</style>
+      <style>{`* { box-sizing: border-box; font-family: 'Outfit', sans-serif; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; font-family: 'Outfit'; }`}</style>
       <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <img src={logoIcon} alt="Logo" style={{ height: '80px', marginBottom: '16px' }} />
-        <h2 style={{ textAlign: 'center', color: '#1e3a5f', marginBottom: '24px' }}>Church of Christ Collab App</h2>
+        <h2 style={{ textAlign: 'center', color: '#1e3a5f', marginBottom: '24px', fontFamily: 'Outfit' }}>Church of Christ Collab App</h2>
         <form onSubmit={authView === 'login' ? handleLogin : handleRegister} style={{ width: '100%' }}>
           {authView === 'register' && <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
           {authView === 'register' && <input className="auth-in" style={{backgroundColor: churchNameLocked ? '#f3f4f6' : 'white'}} placeholder="Church Name" value={churchName} onChange={e => setChurchName(e.target.value)} disabled={churchNameLocked} required />}
           <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
-          <button className="btn-primary" style={{width: '100%', padding: '12px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'}} type="submit">{authView === 'login' ? 'Login' : 'Sign Up'}</button>
-          {authError && <p style={{color: 'red', fontSize: '11px', marginTop: '10px'}}>{authError}</p>}
+          <button className="btn-primary" style={{width: '100%', padding: '12px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'Outfit'}} type="submit">{authView === 'login' ? 'Login' : 'Sign Up'}</button>
         </form>
-        <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ border: 'none', background: 'none', marginTop: '12px', color: '#1e3a5f', cursor: 'pointer' }}>
+        <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ border: 'none', background: 'none', marginTop: '12px', color: '#1e3a5f', cursor: 'pointer', fontFamily: 'Outfit' }}>
           {authView === 'login' ? "Need an account? Sign Up" : "Back to Login"}
         </button>
       </div>
@@ -284,26 +283,73 @@ export default function ChurchScheduleApp() {
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8f6f3', fontFamily: "'Outfit', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: '#f8f6f3' }}>
       <style>{`
-        * { box-sizing: border-box; }
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
-        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; flex-shrink: 0; font-family: 'Outfit'; }
-        .btn-secondary { background: white; color: #1e3a5f; border: 2px solid #1e3a5f; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 8px; font-family: 'Outfit'; }
-        .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px; overflow-x: hidden; }
-        .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; display: flex; align-items: center; gap: 8px; font-family: 'Outfit'; }
-        .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
-        .calendar-bar { padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: pointer; display: block; width: 100%; text-align: left; border: none; font-family: 'Outfit'; }
-        .bar-empty { background: #e5e7eb; color: #666; }
-        .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-family: 'Outfit', sans-serif; }
         
-        /* RESTORED BADGE LAYOUT */
-        .service-badge { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; margin-right: 8px; margin-bottom: 8px; display: inline-flex; align-items: center; font-family: 'Outfit'; line-height: 1; }
+        /* GLOBAL FONT FIX */
+        * { 
+          box-sizing: border-box; 
+          font-family: 'Outfit', sans-serif !important; 
+        }
+
+        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; flex-shrink: 0; }
+        .btn-secondary { background: white; color: #1e3a5f; border: 2px solid #1e3a5f; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px; overflow-x: hidden; }
+        .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; display: flex; align-items: center; gap: 8px; }
+        .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
+        
+        /* CALENDAR BARS */
+        .calendar-bar { padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 4px 0; cursor: pointer; display: block; width: 100%; text-align: left; border: none; }
+        .bar-empty { background: #e5e7eb; color: #666; }
+        .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; }
+        
+        /* RESTORED PILL BADGE LAYOUT */
+        .service-badge { 
+          padding: 6px 14px; 
+          border-radius: 999px; 
+          font-size: 12px; 
+          font-weight: 600; 
+          margin-right: 8px; 
+          margin-bottom: 8px; 
+          display: inline-flex; 
+          align-items: center; 
+          line-height: 1; 
+          white-space: nowrap;
+        }
         .badge-priority { background: #fee2e2; color: #dc2626; }
 
-        /* VERTICAL DROPDOWN */
-        .actions-dropdown { position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); overflow: hidden; min-width: 180px; z-index: 1000; display: flex; flex-direction: column; border: 1px solid #eee; padding: 6px 0; }
-        .dropdown-item { padding: 12px 20px; text-align: left; border: none; background: transparent; cursor: pointer; font-family: 'Outfit'; font-size: 14px; font-weight: 500; color: #1e3a5f; display: flex; align-items: center; gap: 10px; width: 100%; }
+        /* VERTICAL ACTIONS DROPDOWN */
+        .actions-dropdown { 
+          position: absolute; 
+          top: 100%; 
+          right: 0; 
+          margin-top: 8px; 
+          background: white; 
+          border-radius: 12px; 
+          box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+          overflow: hidden; 
+          min-width: 200px; 
+          z-index: 1000; 
+          display: flex; 
+          flex-direction: column !important; 
+          border: 1px solid #eee; 
+          padding: 8px 0;
+        }
+        .dropdown-item { 
+          padding: 12px 20px; 
+          text-align: left; 
+          border: none; 
+          background: transparent; 
+          cursor: pointer; 
+          font-size: 14px; 
+          font-weight: 500; 
+          color: #1e3a5f; 
+          display: flex; 
+          align-items: center; 
+          gap: 12px; 
+          width: 100%;
+        }
         .dropdown-item:hover { background: #f3f4f6; }
         .dropdown-item.danger { color: #dc2626; }
         .dropdown-item.danger:hover { background: #fee2e2; }
@@ -354,11 +400,11 @@ export default function ChurchScheduleApp() {
                 </button>
                 {showActions && (
                   <div className="actions-dropdown">
-                    <button className="dropdown-item" onClick={() => exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName)}>📄 Export PDF</button>
-                    <button className="dropdown-item" onClick={() => exportToCSV(selectedMonth, schedule, speakers, serviceSettings, getSpeakerName)}>📊 Export CSV</button>
+                    <button className="dropdown-item" onClick={() => { exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName); setShowActions(false); }}>📄 Export PDF</button>
+                    <button className="dropdown-item" onClick={() => { exportToCSV(selectedMonth, schedule, speakers, serviceSettings, getSpeakerName); setShowActions(false); }}>📊 Export CSV</button>
                     {['owner', 'admin'].includes(userRole) && (
                       <>
-                        <button className="dropdown-item" onClick={() => fileInputRef.current.click()}>📥 Import CSV</button>
+                        <button className="dropdown-item" onClick={() => { fileInputRef.current.click(); setShowActions(false); }}>📥 Import CSV</button>
                         <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" style={{ display: 'none' }} />
                         <button className="dropdown-item danger" onClick={handleClearMonth}>🗑️ Clear Month</button>
                       </>
@@ -389,11 +435,11 @@ export default function ChurchScheduleApp() {
       {transferTarget && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
           <div className="card" style={{ background: 'white', padding: '32px', borderRadius: '16px', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-            <h2>Transfer Ownership?</h2>
-            <p>Make <strong>{transferTarget.displayName}</strong> the Owner?</p>
+            <h2 style={{ fontFamily: 'Outfit' }}>Transfer Ownership?</h2>
+            <p style={{ fontFamily: 'Outfit' }}>Make <strong>{transferTarget.displayName}</strong> the Owner?</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => transferOwnership(transferTarget.id)} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Transfer Ownership</button>
-              <button onClick={() => setTransferTarget(null)} style={{ background: '#f3f4f6', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => transferOwnership(transferTarget.id)} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Outfit' }}>Transfer Ownership</button>
+              <button onClick={() => setTransferTarget(null)} style={{ background: '#f3f4f6', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'Outfit' }}>Cancel</button>
             </div>
           </div>
         </div>
@@ -402,11 +448,11 @@ export default function ChurchScheduleApp() {
       {assigningSlot && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
-            <h3>Assign Speaker</h3>
+            <h3 style={{ fontFamily: 'Outfit' }}>Assign Speaker</h3>
             {speakers.filter(s => s.availability?.[assigningSlot.serviceType]).map(s => (
-              <button key={s.id} className="btn-secondary" style={{ width: '100%', marginBottom: '8px', textAlign: 'left' }} onClick={() => { setSchedule({ ...schedule, [assigningSlot.slotKey]: { speakerId: s.id, date: assigningSlot.date, serviceType: assigningSlot.serviceType } }); setAssigningSlot(null); }}>{s.firstName} {s.lastName}</button>
+              <button key={s.id} className="btn-secondary" style={{ width: '100%', marginBottom: '8px', textAlign: 'left', fontFamily: 'Outfit' }} onClick={() => { setSchedule({ ...schedule, [assigningSlot.slotKey]: { speakerId: s.id, date: assigningSlot.date, serviceType: assigningSlot.serviceType } }); setAssigningSlot(null); }}>{s.firstName} {s.lastName}</button>
             ))}
-            <button className="btn-secondary" style={{ width: '100%', marginTop: '12px' }} onClick={() => setAssigningSlot(null)}>Cancel</button>
+            <button className="btn-secondary" style={{ width: '100%', marginTop: '12px', fontFamily: 'Outfit' }} onClick={() => setAssigningSlot(null)}>Cancel</button>
           </div>
         </div>
       )}
