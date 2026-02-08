@@ -188,13 +188,7 @@ export default function ChurchScheduleApp() {
       expiresAt.setDate(expiresAt.getDate() + 30);
 
       const inviteData = {
-        orgId,
-        email: inviteEmail,
-        role: inviteRole,
-        churchName,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        expiresAt: expiresAt.toISOString()
+        orgId, email: inviteEmail, role: inviteRole, churchName, status: 'pending', createdAt: new Date().toISOString(), expiresAt: expiresAt.toISOString()
       };
 
       await db.current.collection('invitations').doc(inviteCode).set(inviteData);
@@ -262,24 +256,14 @@ export default function ChurchScheduleApp() {
     e.preventDefault();
     try {
       const now = new Date().toISOString();
-      if (invitationData && invitationData.expiresAt < now) {
-        return setAuthError("This invitation has expired.");
-      }
+      if (invitationData && invitationData.expiresAt < now) return setAuthError("This invitation has expired.");
       const targetOrgId = invitationData?.orgId || ('org_' + Math.random().toString(36).substring(2, 12));
       const targetRole = invitationData?.role || 'owner';
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
       await r.user.updateProfile({ displayName: authName });
-      if (!invitationData) {
-        await db.current.collection('organizations').doc(targetOrgId).set({ 
-          churchName, ownerUid: r.user.uid, createdAt: new Date().toISOString() 
-        });
-      } else {
-        const inviteCode = new URLSearchParams(window.location.search).get('invite');
-        await db.current.collection('invitations').doc(inviteCode).update({ status: 'accepted' });
-      }
-      await db.current.collection('users').doc(r.user.uid).set({ 
-        email: authEmail, name: authName, orgId: targetOrgId, role: targetRole, createdAt: new Date().toISOString() 
-      }); 
+      if (!invitationData) await db.current.collection('organizations').doc(targetOrgId).set({ churchName, ownerUid: r.user.uid, createdAt: new Date().toISOString() });
+      else await db.current.collection('invitations').doc(new URLSearchParams(window.location.search).get('invite')).update({ status: 'accepted' });
+      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, orgId: targetOrgId, role: targetRole, createdAt: new Date().toISOString() }); 
       window.location.href = window.location.origin;
     } catch (err) { setAuthError(err.message); }
   };
@@ -378,14 +362,8 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      <SettingsModal 
-        isOpen={showSettings} onClose={() => setShowSettings(false)} 
-        serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} 
-        userRole={userRole} user={user} members={members} 
-        pendingInvites={pendingInvites} cancelInvite={cancelInvite} 
-        inviteEmail={inviteEmail} setInviteEmail={setInviteEmail} inviteRole={inviteRole} setInviteRole={setInviteRole} 
-        generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} setTransferTarget={setTransferTarget} 
-      />
+      {/* MODALS */}
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} cancelInvite={cancelInvite} inviteEmail={inviteEmail} setInviteEmail={setInviteEmail} inviteRole={inviteRole} setInviteRole={setInviteRole} generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} setTransferTarget={setTransferTarget} />
       <SpeakerModal isOpen={showAddSpeaker} onClose={() => setShowAddSpeaker(false)} editingSpeaker={editingSpeaker} setEditingSpeaker={setEditingSpeaker} speakers={speakers} setSpeakers={setSpeakers} />
       <ProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} userRole={userRole} churchName={churchName} setChurchName={setChurchName} userFirstName={userFirstName} setUserFirstName={setUserFirstName} userLastName={userLastName} setUserLastName={setUserLastName} newEmail={newEmail} setNewEmail={setNewEmail} newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} handleUpdateProfile={handleUpdateProfile} />
       <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} userRole={userRole} setAssigningSlot={setAssigningSlot} />
