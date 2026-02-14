@@ -2,25 +2,17 @@
 import React, { useState } from 'react';
 
 export default function MemberProfileModal({ 
-  isOpen, 
-  onClose, 
-  editingMember, 
-  setEditingMember, 
-  members, 
-  setMembers, 
-  families, 
-  setFamilies, 
-  serviceSettings,
-  userRole // Receive userRole
+  isOpen, onClose, editingMember, setEditingMember, 
+  members, setMembers, families, setFamilies, 
+  serviceSettings, userRole 
 }) {
   const [activeTab, setActiveTab] = useState('about');
   if (!isOpen || !editingMember) return null;
 
-  // READ-ONLY LOGIC
   const isReadOnly = !['owner', 'admin'].includes(userRole);
 
   const handleSave = () => {
-    if (isReadOnly) return; // Prevent saving if unauthorized
+    if (isReadOnly) return;
     if (members.find(m => m.id === editingMember.id)) {
       setMembers(members.map(m => m.id === editingMember.id ? editingMember : m));
     } else {
@@ -34,34 +26,48 @@ export default function MemberProfileModal({
     setEditingMember({ ...editingMember, [field]: value });
   };
 
-  const createNewFamily = () => {
-    if (isReadOnly) return;
-    const familyName = prompt("Enter family name (e.g., 'The Hammonds Family'):");
-    if (!familyName) return;
-    const newId = 'fam_' + Date.now();
-    setFamilies([...families, { id: newId, name: familyName }]);
-    updateField('familyId', newId);
+  // Speaker Rules Logic
+  const addRepeatRule = () => {
+    const rules = editingMember.repeatRules || [];
+    updateField('repeatRules', [...rules, { serviceType: 'sundayMorning', pattern: 'everyOther', startWeek: 'odd' }]);
+  };
+
+  const removeRule = (index) => {
+    const rules = [...(editingMember.repeatRules || [])];
+    rules.splice(index, 1);
+    updateField('repeatRules', rules);
+  };
+
+  const updateRule = (index, field, value) => {
+    const rules = [...(editingMember.repeatRules || [])];
+    rules[index] = { ...rules[index], [field]: value };
+    updateField('repeatRules', rules);
   };
 
   const currentFamily = (families || []).find(f => f.id === editingMember.familyId);
   const householdMembers = (members || []).filter(m => m.familyId === editingMember.familyId && m.id !== editingMember.id);
 
+  const skillOptions = [
+    "Teacher", "Prayers", "Songs", "Contribution/Collection", 
+    "Communion", "Opening Announcements", "Closing Announcements"
+  ];
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-      <div className="card" style={{ width: '100%', maxWidth: '850px', maxHeight: '90vh', display: 'flex', padding: 0, overflow: 'hidden' }}>
+      <div className="card" style={{ width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', padding: 0, overflow: 'hidden' }}>
         
-        {/* SIDEBAR: CMS Fields */}
+        {/* SIDEBAR */}
         <div style={{ width: '300px', borderRight: '1px solid #eee', padding: '24px', background: '#fbfbfc', overflowY: 'auto' }}>
-          <h3 style={{ margin: '0 0 20px 0' }}>About</h3>
+          <h3 style={{ margin: '0 0 20px 0' }}>About Person</h3>
           <div style={{ display: 'grid', gap: '14px' }}>
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>First Name</label>
-            <input className="input-field" disabled={isReadOnly} style={{padding: '8px 12px'}} value={editingMember.firstName || ''} onChange={e => updateField('firstName', e.target.value)} />
+            <input className="input-field" disabled={isReadOnly} value={editingMember.firstName || ''} onChange={e => updateField('firstName', e.target.value)} />
             
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Last Name</label>
-            <input className="input-field" disabled={isReadOnly} style={{padding: '8px 12px'}} value={editingMember.lastName || ''} onChange={e => updateField('lastName', e.target.value)} />
+            <input className="input-field" disabled={isReadOnly} value={editingMember.lastName || ''} onChange={e => updateField('lastName', e.target.value)} />
             
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Leadership Role</label>
-            <select className="input-field" disabled={isReadOnly} style={{padding: '8px 12px'}} value={editingMember.leadershipRole || ''} onChange={e => updateField('leadershipRole', e.target.value)}>
+            <select className="input-field" disabled={isReadOnly} value={editingMember.leadershipRole || ''} onChange={e => updateField('leadershipRole', e.target.value)}>
               <option value="">None</option>
               <option value="Elder">Elder</option>
               <option value="Deacon">Deacon</option>
@@ -69,15 +75,12 @@ export default function MemberProfileModal({
               <option value="Teacher">Teacher</option>
             </select>
             
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Email</label>
-            <input className="input-field" disabled={isReadOnly} style={{padding: '8px 12px'}} value={editingMember.email || ''} onChange={e => updateField('email', e.target.value)} />
-            
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Phone</label>
-            <input className="input-field" disabled={isReadOnly} style={{padding: '8px 12px'}} value={editingMember.phone || ''} onChange={e => updateField('phone', e.target.value)} />
+            <input className="input-field" disabled={isReadOnly} value={editingMember.phone || ''} onChange={e => updateField('phone', e.target.value)} />
           </div>
         </div>
 
-        {/* CONTENT AREA: Tabs */}
+        {/* CONTENT */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', borderBottom: '1px solid #eee', background: '#fff' }}>
             <button className={`nav-tab ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>Overview</button>
@@ -89,58 +92,68 @@ export default function MemberProfileModal({
           <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
             {activeTab === 'about' && (
               <div>
-                <h2 style={{marginTop: 0}}>{editingMember.firstName} {editingMember.lastName}</h2>
-                <p style={{color: '#666'}}>Unified profile for congregation management.</p>
-                {isReadOnly && <p style={{fontSize: '12px', color: '#dc2626', background: '#fef2f2', padding: '8px', borderRadius: '4px', border: '1px solid #fee2e2'}}>Note: Only Admins can modify profile data.</p>}
-              </div>
-            )}
-
-            {activeTab === 'family' && (
-              <div style={{ display: 'grid', gap: '24px' }}>
-                <div className="card" style={{ background: '#f8f6f3', border: '1px dashed #ddd' }}>
-                  <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '13px' }}>Link to Household</label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <select className="input-field" disabled={isReadOnly} style={{flex: 1}} value={editingMember.familyId || ""} onChange={e => updateField('familyId', e.target.value)}>
-                      <option value="">— Not Linked —</option>
-                      {(families || []).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                    </select>
-                    {!isReadOnly && <button className="btn-secondary" onClick={createNewFamily}>+ New Household</button>}
-                  </div>
-                </div>
-
-                {currentFamily && (
-                  <div>
-                    <h4 style={{ color: '#1e3a5f', marginBottom: '12px' }}>Members of {currentFamily.name}</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {householdMembers.map(m => (
-                        <div key={m.id} className="service-badge" style={{ background: '#fff', border: '1px solid #eee' }}>
-                          👤 {m.firstName} {m.lastName}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <h2>{editingMember.firstName} {editingMember.lastName}</h2>
+                <p style={{color: '#666'}}>Manage scheduling rules and qualifications.</p>
               </div>
             )}
 
             {activeTab === 'speaker' && (
               <div>
                 <label style={{ display: 'flex', gap: '12px', fontWeight: 'bold', marginBottom: '24px', alignItems: 'center' }}>
-                  <input type="checkbox" disabled={isReadOnly} style={{width: '18px', height: '18px'}} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} /> 
+                  <input type="checkbox" disabled={isReadOnly} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} /> 
                   Enable for Schedule Generator
                 </label>
+
                 {editingMember.isSpeaker && (
-                  <div style={{ display: 'grid', gap: '16px' }}>
-                    <strong>Weekly Availability</strong>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {Object.keys(serviceSettings).map(k => (
-                        <label key={k} className="service-badge" style={{ background: editingMember.availability?.[k] ? '#dbeafe' : '#f3f4f6', cursor: isReadOnly ? 'default' : 'pointer' }}>
-                          <input type="checkbox" disabled={isReadOnly} style={{marginRight: '8px'}} checked={editingMember.availability?.[k] || false} onChange={e => {
-                            const currentAvail = editingMember.availability || {};
-                            updateField('availability', { ...currentAvail, [k]: e.target.checked });
-                          }} /> {serviceSettings[k].label}
-                        </label>
-                      ))}
+                  <div style={{ display: 'grid', gap: '24px' }}>
+                    <div>
+                      <strong style={{ display: 'block', marginBottom: '12px' }}>Weekly Availability</strong>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {Object.keys(serviceSettings).map(k => (
+                          <label key={k} className="service-badge" style={{ background: editingMember.availability?.[k] ? '#dbeafe' : '#f3f4f6', cursor: isReadOnly ? 'default' : 'pointer' }}>
+                            <input type="checkbox" disabled={isReadOnly} checked={editingMember.availability?.[k] || false} onChange={e => {
+                              const avail = editingMember.availability || {};
+                              updateField('availability', { ...avail, [k]: e.target.checked });
+                            }} /> {serviceSettings[k].label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #eee', paddingTop: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <strong>Repeat Rules</strong>
+                        {!isReadOnly && <button className="btn-secondary" style={{fontSize: '11px', padding: '4px 8px'}} onClick={addRepeatRule}>+ Add Rule</button>}
+                      </div>
+                      
+                      <div style={{ display: 'grid', gap: '12px' }}>
+                        {(editingMember.repeatRules || []).map((rule, idx) => (
+                          <div key={idx} style={{ background: '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid #eee', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <select className="input-field" style={{flex: '1 1 120px', padding: '4px'}} value={rule.serviceType} onChange={e => updateRule(idx, 'serviceType', e.target.value)}>
+                              {Object.keys(serviceSettings).map(k => <option key={k} value={k}>{serviceSettings[k].label}</option>)}
+                            </select>
+                            <select className="input-field" style={{flex: '1 1 120px', padding: '4px'}} value={rule.pattern} onChange={e => updateRule(idx, 'pattern', e.target.value)}>
+                              <option value="everyOther">Every Other Week</option>
+                              <option value="nthWeek">Specific Sunday</option>
+                            </select>
+                            {rule.pattern === 'everyOther' ? (
+                              <select className="input-field" style={{flex: '1 1 100px', padding: '4px'}} value={rule.startWeek} onChange={e => updateRule(idx, 'startWeek', e.target.value)}>
+                                <option value="odd">Odd Weeks</option>
+                                <option value="even">Even Weeks</option>
+                              </select>
+                            ) : (
+                              <select className="input-field" style={{flex: '1 1 100px', padding: '4px'}} value={rule.nthWeek} onChange={e => updateRule(idx, 'nthWeek', parseInt(e.target.value))}>
+                                <option value="1">1st Sunday</option>
+                                <option value="2">2nd Sunday</option>
+                                <option value="3">3rd Sunday</option>
+                                <option value="4">4th Sunday</option>
+                                <option value="5">5th Sunday</option>
+                              </select>
+                            )}
+                            {!isReadOnly && <button onClick={() => removeRule(idx)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -149,17 +162,39 @@ export default function MemberProfileModal({
 
             {activeTab === 'service' && (
               <div>
-                <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Service duties this member is qualified for.</p>
+                <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Select categories for the Arranging Services tool.</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {["Song Leading", "Opening Prayer", "Closing Prayer", "Table", "Scripture Reading", "Usher"].map(skill => (
-                    <label key={skill} className="service-badge" style={{ background: (editingMember.serviceSkills || []).includes(skill) ? '#d1fae5' : '#f3f4f6', cursor: isReadOnly ? 'default' : 'pointer' }}>
-                      <input type="checkbox" disabled={isReadOnly} style={{marginRight: '8px'}} checked={(editingMember.serviceSkills || []).includes(skill)} onChange={e => {
+                  {skillOptions.map(skill => (
+                    <label key={skill} className="service-badge" style={{ background: (editingMember.serviceSkills || []).includes(skill) ? '#d1fae5' : '#f3f4f6', cursor: isReadOnly ? 'default' : 'pointer', padding: '8px 16px' }}>
+                      <input type="checkbox" disabled={isReadOnly} checked={(editingMember.serviceSkills || []).includes(skill)} onChange={e => {
                         const skills = editingMember.serviceSkills || [];
                         updateField('serviceSkills', e.target.checked ? [...skills, skill] : skills.filter(s => s !== skill));
                       }} /> {skill}
                     </label>
                   ))}
                 </div>
+              </div>
+            )}
+            
+            {activeTab === 'family' && (
+              <div style={{ display: 'grid', gap: '20px' }}>
+                <div className="card" style={{ background: '#f8f6f3', border: '1px dashed #ddd', padding: '16px' }}>
+                  <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>HOUSEHOLD LINK</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <select className="input-field" disabled={isReadOnly} value={editingMember.familyId || ""} onChange={e => updateField('familyId', e.target.value)}>
+                      <option value="">— Not Linked —</option>
+                      {(families || []).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {currentFamily && householdMembers.length > 0 && (
+                  <div>
+                    <h4 style={{ color: '#1e3a5f', marginBottom: '12px' }}>Household Members</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {householdMembers.map(m => <div key={m.id} className="service-badge" style={{ background: '#fff', border: '1px solid #eee' }}>👤 {m.firstName} {m.lastName}</div>)}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
