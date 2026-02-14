@@ -44,7 +44,7 @@ export default function DirectoryTab({ members = [], families = [], userRole, se
                   {family && <span className="service-badge" style={{ background: '#fff7ed', color: '#9a3412', marginTop: '8px', fontSize: '11px', border: '1px solid #fed7aa' }}>🏠 {family.name}</span>}
                 </div>
                 <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => setEditingMember({ ...m })}>
-                  <EditIcon /> Profile
+                  {['owner', 'admin'].includes(userRole) ? <EditIcon /> : '👁️'} {['owner', 'admin'].includes(userRole) ? 'Profile' : 'View'}
                 </button>
               </div>
               

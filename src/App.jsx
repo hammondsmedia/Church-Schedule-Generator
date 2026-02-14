@@ -28,6 +28,7 @@ export default function ChurchScheduleApp() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
+  const [authMode, setAuthMode] = useState('create');
   const [churchName, setChurchName] = useState('');
   const [churchNameLocked, setChurchNameLocked] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
@@ -126,8 +127,7 @@ export default function ChurchScheduleApp() {
           const orgDoc = await db.current.collection('organizations').doc(userData.orgId).get();
           if (orgDoc.exists) {
             const d = orgDoc.data();
-            if (d.members) setMembers(d.members);
-            else setMembers(migrateToDirectory(d)); // Migration logic
+            if (!d.members) setMembers(migrateToDirectory(d)); // Migration logic
             
             setFamilies(d.families || []); // Load household data
             setSchedule(d.schedule || {});
@@ -163,6 +163,33 @@ export default function ChurchScheduleApp() {
     const now = new Date().toISOString();
     const inviteSnapshot = await db.current.collection('invitations').where('orgId', '==', targetOrgId).where('status', '==', 'pending').get();
     const activeInvites = inviteSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(invite => invite.expiresAt > now);
+
+    const orgDoc = await db.current.collection('organizations').doc(targetOrgId).get();
+    const orgMembers = orgDoc.exists ? (orgDoc.data().members || []) : [];
+    const orgMemberById = Object.fromEntries(orgMembers.map(m => [String(m.id), m]));
+
+    const mappedDirectoryMembers = memberSnapshot.docs.map(doc => {
+      const userData = doc.data();
+      const directoryData = orgMemberById[String(doc.id)] || {};
+      const [firstFromName = '', ...restName] = (userData.name || '').split(' ');
+      return {
+        id: doc.id,
+        firstName: directoryData.firstName || userData.firstName || firstFromName,
+        lastName: directoryData.lastName || userData.lastName || restName.join(' '),
+        email: userData.email || directoryData.email || '',
+        phone: directoryData.phone || '',
+        role: userData.role || 'viewer',
+        isSpeaker: directoryData.isSpeaker || false,
+        availability: directoryData.availability || {},
+        blockOffDates: directoryData.blockOffDates || [],
+        repeatRules: directoryData.repeatRules || [],
+        serviceSkills: directoryData.serviceSkills || [],
+        leadershipRole: directoryData.leadershipRole || '',
+        familyId: directoryData.familyId || ''
+      };
+    });
+
+    setMembers(mappedDirectoryMembers);
     setPendingInvites(activeInvites);
   };
 
@@ -245,13 +272,66 @@ export default function ChurchScheduleApp() {
     try {
       const now = new Date().toISOString();
       if (invitationData && invitationData.expiresAt < now) return setAuthError("Invitation expired.");
-      const targetOrgId = invitationData?.orgId || ('org_' + Math.random().toString(36).substring(2, 12));
-      const targetRole = invitationData?.role || 'owner';
+
+      const creatingOrg = authMode === 'create' && !invitationData;
+      let targetOrgId = invitationData?.orgId || null;
+      let targetRole = invitationData?.role || 'standard';
+
+      if (!invitationData && !creatingOrg) {
+        const orgQuery = await db.current.collection('organizations').where('churchName', '==', churchName.trim()).limit(1).get();
+        if (orgQuery.empty) {
+          setAuthError('Organization not found. Ask your owner/admin for the exact organization name or an invite link.');
+          return;
+        }
+        targetOrgId = orgQuery.docs[0].id;
+      }
+
+      if (!targetOrgId) {
+        targetOrgId = 'org_' + Math.random().toString(36).substring(2, 12);
+        targetRole = 'owner';
+      }
+
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
       await r.user.updateProfile({ displayName: authName });
-      if (!invitationData) await db.current.collection('organizations').doc(targetOrgId).set({ churchName, ownerUid: r.user.uid, createdAt: new Date().toISOString() });
-      else await db.current.collection('invitations').doc(new URLSearchParams(window.location.search).get('invite')).update({ status: 'accepted' });
-      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, orgId: targetOrgId, role: targetRole, createdAt: new Date().toISOString() }); 
+
+      if (!invitationData && creatingOrg) {
+        await db.current.collection('organizations').doc(targetOrgId).set({ churchName, ownerUid: r.user.uid, createdAt: new Date().toISOString() });
+      } else if (invitationData) {
+        await db.current.collection('invitations').doc(new URLSearchParams(window.location.search).get('invite')).update({ status: 'accepted' });
+      }
+
+      const [firstName = '', ...lastParts] = authName.trim().split(' ');
+      const lastName = lastParts.join(' ');
+
+      await db.current.collection('users').doc(r.user.uid).set({
+        email: authEmail,
+        name: authName,
+        firstName,
+        lastName,
+        orgId: targetOrgId,
+        role: targetRole,
+        createdAt: new Date().toISOString()
+      });
+
+      const orgDoc = await db.current.collection('organizations').doc(targetOrgId).get();
+      const orgMembers = orgDoc.exists ? (orgDoc.data().members || []) : [];
+      const withoutCurrent = orgMembers.filter(m => String(m.id) !== String(r.user.uid));
+      withoutCurrent.push({
+        id: r.user.uid,
+        firstName,
+        lastName,
+        email: authEmail,
+        phone: '',
+        isSpeaker: false,
+        availability: {},
+        blockOffDates: [],
+        repeatRules: [],
+        serviceSkills: [],
+        leadershipRole: '',
+        familyId: ''
+      });
+      await db.current.collection('organizations').doc(targetOrgId).set({ members: withoutCurrent }, { merge: true });
+
       window.location.href = window.location.origin;
     } catch (err) { setAuthError(err.message); }
   };
@@ -269,6 +349,12 @@ export default function ChurchScheduleApp() {
         <h2 style={{ textAlign: 'center', color: '#1e3a5f', marginBottom: '24px', fontFamily: 'Outfit' }}>Church of Christ Collab App</h2>
         <form onSubmit={authView === 'login' ? handleLogin : handleRegister} style={{ width: '100%' }}>
           {authView === 'register' && <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
+          {authView === 'register' && !invitationData && (
+            <select className="auth-in" value={authMode} onChange={e => setAuthMode(e.target.value)}>
+              <option value="create">Create New Organization</option>
+              <option value="join">Join Existing Organization</option>
+            </select>
+          )}
           {authView === 'register' && <input className="auth-in" style={{backgroundColor: churchNameLocked ? '#f3f4f6' : 'white'}} placeholder="Church Name" value={churchName} onChange={e => setChurchName(e.target.value)} disabled={churchNameLocked} required />}
           <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
@@ -372,7 +458,7 @@ export default function ChurchScheduleApp() {
       </main>
 
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} generateInviteLink={generateInviteLink} />
-      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} />
+      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} canEdit={['owner', 'admin'].includes(userRole)} />
       <ProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} userRole={userRole} churchName={churchName} setChurchName={setChurchName} userFirstName={userFirstName} setUserFirstName={setUserFirstName} userLastName={userLastName} setUserLastName={setUserLastName} newEmail={newEmail} setNewEmail={setNewEmail} newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} handleUpdateProfile={handleUpdateProfile} />
       <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} userRole={userRole} setAssigningSlot={setAssigningSlot} />
 

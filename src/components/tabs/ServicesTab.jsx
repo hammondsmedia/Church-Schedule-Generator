@@ -1,5 +1,5 @@
 // src/components/tabs/ServicesTab.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const STORAGE_KEY = "services_plans_v1";
 

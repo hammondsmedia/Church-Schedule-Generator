@@ -1,11 +1,12 @@
 // src/components/modals/MemberProfileModal.jsx
 import React, { useState } from 'react';
 
-export default function MemberProfileModal({ isOpen, onClose, editingMember, setEditingMember, members, setMembers, families, setFamilies, serviceSettings }) {
+export default function MemberProfileModal({ isOpen, onClose, editingMember, setEditingMember, members, setMembers, families, setFamilies, serviceSettings, canEdit = false }) {
   const [activeTab, setActiveTab] = useState('about');
   if (!isOpen || !editingMember) return null;
 
   const handleSave = () => {
+    if (!canEdit) return onClose();
     if (members.find(m => m.id === editingMember.id)) {
       setMembers(members.map(m => m.id === editingMember.id ? editingMember : m));
     } else {
@@ -14,7 +15,10 @@ export default function MemberProfileModal({ isOpen, onClose, editingMember, set
     onClose();
   };
 
-  const updateField = (field, value) => setEditingMember({ ...editingMember, [field]: value });
+  const updateField = (field, value) => {
+    if (!canEdit) return;
+    setEditingMember({ ...editingMember, [field]: value });
+  };
 
   // Family Logic
   const createNewFamily = () => {
@@ -35,15 +39,16 @@ export default function MemberProfileModal({ isOpen, onClose, editingMember, set
         {/* SIDEBAR: CMS Fields */}
         <div style={{ width: '300px', borderRight: '1px solid #eee', padding: '24px', background: '#fbfbfc', overflowY: 'auto' }}>
           <h3 style={{ margin: '0 0 20px 0' }}>About</h3>
+          {!canEdit && <p style={{ fontSize: '12px', color: '#666', marginTop: '-6px' }}>Read-only view. Only organization owners and admins can edit profiles.</p>}
           <div style={{ display: 'grid', gap: '14px' }}>
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>First Name</label>
-            <input className="input-field" style={{padding: '8px 12px'}} value={editingMember.firstName} onChange={e => updateField('firstName', e.target.value)} />
+            <input className="input-field" style={{padding: '8px 12px'}} value={editingMember.firstName} onChange={e => updateField('firstName', e.target.value)} disabled={!canEdit} />
             
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Last Name</label>
-            <input className="input-field" style={{padding: '8px 12px'}} value={editingMember.lastName} onChange={e => updateField('lastName', e.target.value)} />
+            <input className="input-field" style={{padding: '8px 12px'}} value={editingMember.lastName} onChange={e => updateField('lastName', e.target.value)} disabled={!canEdit} />
             
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Leadership Role</label>
-            <select className="input-field" style={{padding: '8px 12px'}} value={editingMember.leadershipRole} onChange={e => updateField('leadershipRole', e.target.value)}>
+            <select className="input-field" style={{padding: '8px 12px'}} value={editingMember.leadershipRole} onChange={e => updateField('leadershipRole', e.target.value)} disabled={!canEdit}>
               <option value="">None</option>
               <option value="Elder">Elder</option>
               <option value="Deacon">Deacon</option>
@@ -52,10 +57,10 @@ export default function MemberProfileModal({ isOpen, onClose, editingMember, set
             </select>
             
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Email</label>
-            <input className="input-field" style={{padding: '8px 12px'}} value={editingMember.email || ''} onChange={e => updateField('email', e.target.value)} />
+            <input className="input-field" style={{padding: '8px 12px'}} value={editingMember.email || ''} onChange={e => updateField('email', e.target.value)} disabled={!canEdit} />
             
             <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Phone</label>
-            <input className="input-field" style={{padding: '8px 12px'}} value={editingMember.phone || ''} onChange={e => updateField('phone', e.target.value)} />
+            <input className="input-field" style={{padding: '8px 12px'}} value={editingMember.phone || ''} onChange={e => updateField('phone', e.target.value)} disabled={!canEdit} />
           </div>
         </div>
 
@@ -81,11 +86,11 @@ export default function MemberProfileModal({ isOpen, onClose, editingMember, set
                 <div className="card" style={{ background: '#f8f6f3', border: '1px dashed #ddd' }}>
                   <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '13px' }}>Link to Household</label>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <select className="input-field" style={{flex: 1}} value={editingMember.familyId || ""} onChange={e => updateField('familyId', e.target.value)}>
+                    <select className="input-field" style={{flex: 1}} value={editingMember.familyId || ""} onChange={e => updateField('familyId', e.target.value)} disabled={!canEdit}>
                       <option value="">— Not Linked —</option>
                       {families.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                     </select>
-                    <button className="btn-secondary" onClick={createNewFamily}>+ New Household</button>
+                    <button className="btn-secondary" onClick={createNewFamily} disabled={!canEdit}>+ New Household</button>
                   </div>
                 </div>
 
@@ -111,7 +116,7 @@ export default function MemberProfileModal({ isOpen, onClose, editingMember, set
             {activeTab === 'speaker' && (
               <div>
                 <label style={{ display: 'flex', gap: '12px', fontWeight: 'bold', marginBottom: '24px', alignItems: 'center' }}>
-                  <input type="checkbox" style={{width: '18px', height: '18px'}} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} /> 
+                  <input type="checkbox" style={{width: '18px', height: '18px'}} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} disabled={!canEdit} /> 
                   Enable for Schedule Generator
                 </label>
                 {editingMember.isSpeaker && (
@@ -120,7 +125,7 @@ export default function MemberProfileModal({ isOpen, onClose, editingMember, set
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       {Object.keys(serviceSettings).map(k => (
                         <label key={k} className="service-badge" style={{ background: editingMember.availability?.[k] ? '#dbeafe' : '#f3f4f6', cursor: 'pointer' }}>
-                          <input type="checkbox" style={{marginRight: '8px'}} checked={editingMember.availability?.[k] || false} onChange={e => setEditingMember({ ...editingMember, availability: { ...editingMember.availability, [k]: e.target.checked } })} /> {serviceSettings[k].label}
+                          <input type="checkbox" style={{marginRight: '8px'}} checked={editingMember.availability?.[k] || false} disabled={!canEdit} onChange={e => setEditingMember({ ...editingMember, availability: { ...editingMember.availability, [k]: e.target.checked } })} /> {serviceSettings[k].label}
                         </label>
                       ))}
                     </div>
@@ -135,7 +140,7 @@ export default function MemberProfileModal({ isOpen, onClose, editingMember, set
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {["Song Leading", "Opening Prayer", "Closing Prayer", "Table", "Scripture Reading", "Usher", "Sound/Media"].map(skill => (
                     <label key={skill} className="service-badge" style={{ background: editingMember.serviceSkills?.includes(skill) ? '#d1fae5' : '#f3f4f6', cursor: 'pointer', padding: '8px 16px' }}>
-                      <input type="checkbox" style={{marginRight: '8px'}} checked={editingMember.serviceSkills?.includes(skill)} onChange={e => {
+                      <input type="checkbox" style={{marginRight: '8px'}} checked={editingMember.serviceSkills?.includes(skill)} disabled={!canEdit} onChange={e => {
                         const skills = editingMember.serviceSkills || [];
                         updateField('serviceSkills', e.target.checked ? [...skills, skill] : skills.filter(s => s !== skill));
                       }} /> {skill}
@@ -148,7 +153,7 @@ export default function MemberProfileModal({ isOpen, onClose, editingMember, set
 
           <div style={{ padding: '20px 32px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '12px', background: '#fff' }}>
             <button className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button className="btn-primary" onClick={handleSave}>Save Profile</button>
+            {canEdit && <button className="btn-primary" onClick={handleSave}>Save Profile</button>}
           </div>
         </div>
       </div>
