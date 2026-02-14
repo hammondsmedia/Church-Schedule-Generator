@@ -5,13 +5,15 @@ const EditIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
 );
 
-export default function DirectoryTab({ members, families, userRole, setEditingMember }) {
+export default function DirectoryTab({ members = [], families = [], userRole, setEditingMember }) {
   const [search, setSearch] = useState("");
 
-  const filtered = members.filter(m => 
-    `${m.firstName} ${m.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
-    m.leadershipRole?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = members.filter(m => {
+    const fullName = `${m.firstName || ''} ${m.lastName || ''}`.toLowerCase();
+    const role = (m.leadershipRole || "").toLowerCase();
+    const term = search.toLowerCase();
+    return fullName.includes(term) || role.includes(term);
+  });
 
   return (
     <div>
@@ -47,8 +49,8 @@ export default function DirectoryTab({ members, families, userRole, setEditingMe
               </div>
               
               <div style={{ fontSize: '13px', color: '#666', borderTop: '1px solid #eee', paddingTop: '16px' }}>
-                <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>📧 {m.email || '—'}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>📞 {m.phone || '—'}</div>
+                <div style={{ marginBottom: '6px' }}>📧 {m.email || '—'}</div>
+                <div>📞 {m.phone || '—'}</div>
               </div>
             </div>
           );
