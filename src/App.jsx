@@ -35,7 +35,7 @@ export default function ChurchScheduleApp() {
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [members, setMembers] = useState([]); 
-  const [families, setFamilies] = useState([]); // NEW: Household collection
+  const [families, setFamilies] = useState([]); 
   const [pendingInvites, setPendingInvites] = useState([]); 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
@@ -127,9 +127,9 @@ export default function ChurchScheduleApp() {
           if (orgDoc.exists) {
             const d = orgDoc.data();
             if (d.members) setMembers(d.members);
-            else setMembers(migrateToDirectory(d)); // Auto-migrate old data
+            else setMembers(migrateToDirectory(d)); // Migration logic
             
-            setFamilies(d.families || []); // Load families
+            setFamilies(d.families || []); // Load household data
             setSchedule(d.schedule || {});
             setServiceSettings(d.serviceSettings || serviceSettings);
             setChurchName(d.churchName || '');
@@ -144,13 +144,15 @@ export default function ChurchScheduleApp() {
     const combined = [];
     const speakerMap = {};
     (d.speakers || []).forEach(s => {
+      if (!s) return;
       const m = { ...s, isSpeaker: true, serviceSkills: [], leadershipRole: "", familyId: "" };
       delete m.priority; 
       combined.push(m);
-      speakerMap[`${s.firstName} ${s.lastName}`.toLowerCase()] = s.id;
+      speakerMap[`${s.firstName || ''} ${s.lastName || ''}`.toLowerCase()] = s.id;
     });
     (d.servicePeople || []).forEach(p => {
-      const key = `${p.firstName} ${p.lastName}`.toLowerCase();
+      if (!p) return;
+      const key = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
       if (!speakerMap[key]) combined.push({ ...p, isSpeaker: false, serviceSkills: [], leadershipRole: "", familyId: "" });
     });
     return combined;
@@ -182,7 +184,7 @@ export default function ChurchScheduleApp() {
   };
 
   const handleClearMonth = () => {
-    if (!window.confirm("Clear all assignments for this month?")) return;
+    if (!window.confirm("Clear assignments for this month?")) return;
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach(key => {
@@ -202,8 +204,17 @@ export default function ChurchScheduleApp() {
     }
   };
 
+  // RESTORED FIX: handleSaveNote defined within component scope
+  const handleSaveNote = (slotKey, noteText) => {
+    setSchedule(prev => ({ 
+      ...prev, 
+      [slotKey]: { ...prev[slotKey], note: noteText } 
+    }));
+    setEditingNote(null);
+  };
+
   const generateInviteLink = async () => {
-    if (!orgId || !inviteEmail) return alert("Enter an email.");
+    if (!orgId || !inviteEmail) return alert("Enter email.");
     try {
       const inviteCode = Math.random().toString(36).substring(2, 10);
       const expiresAt = new Date();
@@ -284,7 +295,6 @@ export default function ChurchScheduleApp() {
         .bar-empty { background: #e5e7eb; color: #666; }
         .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; }
         .service-badge { padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-right: 8px; margin-bottom: 8px; display: inline-flex; align-items: center; line-height: 1; white-space: nowrap; }
-        .badge-priority { background: #fee2e2; color: #dc2626; }
         .actions-dropdown { position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); overflow: hidden; min-width: 200px; z-index: 1000; display: flex; flex-direction: column !important; border: 1px solid #eee; padding: 8px 0; }
         .dropdown-item { padding: 12px 20px; text-align: left; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 500; color: #1e3a5f; display: flex; align-items: center; gap: 12px; width: 100%; }
         .dropdown-item:hover { background: #f3f4f6; }
@@ -371,9 +381,9 @@ export default function ChurchScheduleApp() {
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
             <h3>Assign Speaker</h3>
             {members.filter(m => m.isSpeaker && m.availability?.[assigningSlot.serviceType]).map(m => (
-              <button key={m.id} className="btn-secondary" style={{ width: '100%', marginBottom: '8px', textAlign: 'left' }} onClick={() => { setSchedule({ ...schedule, [assigningSlot.slotKey]: { speakerId: m.id, date: assigningSlot.date, serviceType: assigningSlot.serviceType } }); setAssigningSlot(null); }}>{m.firstName} {m.lastName}</button>
+              <button key={m.id} className="btn-secondary" style={{ width: '100%', marginBottom: '8px', textAlign: 'left', fontFamily: 'Outfit' }} onClick={() => { setSchedule({ ...schedule, [assigningSlot.slotKey]: { speakerId: m.id, date: assigningSlot.date, serviceType: assigningSlot.serviceType } }); setAssigningSlot(null); }}>{m.firstName} {m.lastName}</button>
             ))}
-            <button className="btn-secondary" style={{ width: '100%', marginTop: '12px' }} onClick={() => setAssigningSlot(null)}>Cancel</button>
+            <button className="btn-secondary" style={{ width: '100%', marginTop: '12px', fontFamily: 'Outfit' }} onClick={() => setAssigningSlot(null)}>Cancel</button>
           </div>
         </div>
       )}
