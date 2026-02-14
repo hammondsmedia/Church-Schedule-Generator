@@ -127,9 +127,9 @@ export default function ChurchScheduleApp() {
           if (orgDoc.exists) {
             const d = orgDoc.data();
             if (d.members) setMembers(d.members);
-            else setMembers(migrateToDirectory(d)); // Migration logic
+            else setMembers(migrateToDirectory(d));
             
-            setFamilies(d.families || []); // Load household data
+            setFamilies(d.families || []);
             setSchedule(d.schedule || {});
             setServiceSettings(d.serviceSettings || serviceSettings);
             setChurchName(d.churchName || '');
@@ -204,7 +204,6 @@ export default function ChurchScheduleApp() {
     }
   };
 
-  // RESTORED FIX: handleSaveNote defined within component scope
   const handleSaveNote = (slotKey, noteText) => {
     setSchedule(prev => ({ 
       ...prev, 
@@ -245,13 +244,57 @@ export default function ChurchScheduleApp() {
     try {
       const now = new Date().toISOString();
       if (invitationData && invitationData.expiresAt < now) return setAuthError("Invitation expired.");
+      
       const targetOrgId = invitationData?.orgId || ('org_' + Math.random().toString(36).substring(2, 12));
       const targetRole = invitationData?.role || 'owner';
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
       await r.user.updateProfile({ displayName: authName });
-      if (!invitationData) await db.current.collection('organizations').doc(targetOrgId).set({ churchName, ownerUid: r.user.uid, createdAt: new Date().toISOString() });
-      else await db.current.collection('invitations').doc(new URLSearchParams(window.location.search).get('invite')).update({ status: 'accepted' });
-      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, orgId: targetOrgId, role: targetRole, createdAt: new Date().toISOString() }); 
+
+      const firstName = authName.split(' ')[0] || '';
+      const lastName = authName.split(' ').slice(1).join(' ') || '';
+
+      // Create member object for the directory
+      const newMember = {
+        id: r.user.uid,
+        firstName,
+        lastName,
+        email: authEmail,
+        isSpeaker: false,
+        serviceSkills: [],
+        leadershipRole: "",
+        familyId: "",
+        availability: {},
+        blockOffDates: [],
+        repeatRules: []
+      };
+
+      if (!invitationData) {
+        await db.current.collection('organizations').doc(targetOrgId).set({ 
+          churchName, 
+          ownerUid: r.user.uid, 
+          createdAt: new Date().toISOString(),
+          members: [newMember] // Initialize with the owner
+        });
+      } else {
+        // MARK INVITE USED AND APPEND TO DIRECTORY
+        const inviteCode = new URLSearchParams(window.location.search).get('invite');
+        await db.current.collection('invitations').doc(inviteCode).update({ status: 'accepted' });
+        
+        // Use an arrayUnion-style logic to add member to the existing org document
+        const orgRef = db.current.collection('organizations').doc(targetOrgId);
+        await db.current.runTransaction(async (transaction) => {
+          const orgDoc = await transaction.get(orgRef);
+          if (orgDoc.exists) {
+            const currentMembers = orgDoc.data().members || [];
+            transaction.update(orgRef, { members: [...currentMembers, newMember] });
+          }
+        });
+      }
+
+      await db.current.collection('users').doc(r.user.uid).set({ 
+        email: authEmail, name: authName, firstName, lastName, orgId: targetOrgId, role: targetRole, createdAt: new Date().toISOString() 
+      }); 
+      
       window.location.href = window.location.origin;
     } catch (err) { setAuthError(err.message); }
   };
@@ -273,6 +316,7 @@ export default function ChurchScheduleApp() {
           <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
           <button className="btn-primary" style={{width: '100%', padding: '12px', background: '#1e3a5f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'Outfit'}} type="submit">{authView === 'login' ? 'Login' : 'Sign Up'}</button>
+          {authError && <p style={{color: 'red', fontSize: '11px', marginTop: '10px'}}>{authError}</p>}
         </form>
         <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ border: 'none', background: 'none', marginTop: '12px', color: '#1e3a5f', cursor: 'pointer', fontFamily: 'Outfit' }}>
           {authView === 'login' ? "Need an account? Sign Up" : "Back to Login"}
@@ -372,14 +416,15 @@ export default function ChurchScheduleApp() {
       </main>
 
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} generateInviteLink={generateInviteLink} />
-      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} />
+      {/* RESTORED PROPS: Added userRole here */}
+      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} />
       <ProfileModal isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} userRole={userRole} churchName={churchName} setChurchName={setChurchName} userFirstName={userFirstName} setUserFirstName={setUserFirstName} userLastName={userLastName} setUserLastName={setUserLastName} newEmail={newEmail} setNewEmail={setNewEmail} newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} handleUpdateProfile={handleUpdateProfile} />
       <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} userRole={userRole} setAssigningSlot={setAssigningSlot} />
 
       {assigningSlot && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
           <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
-            <h3>Assign Speaker</h3>
+            <h3 style={{ fontFamily: 'Outfit' }}>Assign Speaker</h3>
             {members.filter(m => m.isSpeaker && m.availability?.[assigningSlot.serviceType]).map(m => (
               <button key={m.id} className="btn-secondary" style={{ width: '100%', marginBottom: '8px', textAlign: 'left', fontFamily: 'Outfit' }} onClick={() => { setSchedule({ ...schedule, [assigningSlot.slotKey]: { speakerId: m.id, date: assigningSlot.date, serviceType: assigningSlot.serviceType } }); setAssigningSlot(null); }}>{m.firstName} {m.lastName}</button>
             ))}
