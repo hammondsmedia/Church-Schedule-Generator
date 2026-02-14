@@ -1,7 +1,7 @@
 // src/components/tabs/ServicesTab.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 
-const STORAGE_KEY = "services_plans_v1";
+const STORAGE_KEY = "services_plans_v2";
 
 const TEMPLATES = {
   WED_NIGHT: {
@@ -56,16 +56,17 @@ function loadPlans() {
   } catch { return []; }
 }
 
-export default function ServicesTab({ members, schedule }) {
+export default function ServicesTab({ members = [], schedule = {} }) {
   const [templateId, setTemplateId] = useState("WED_NIGHT");
   const [date, setDate] = useState(todayISO());
   const [plans, setPlans] = useState(() => loadPlans());
+  const [assignments, setAssignments] = useState({});
 
   const template = useMemo(() => TEMPLATES[templateId] || TEMPLATES.WED_NIGHT, [templateId]);
   const planId = useMemo(() => `${date}__${templateId}`, [date, templateId]);
-  const currentPlan = useMemo(() => plans.find((p) => p.id === planId) || null, [plans, planId]);
-  const [assignments, setAssignments] = useState({});
+  const currentPlan = useMemo(() => (plans || []).find((p) => p.id === planId) || null, [plans, planId]);
 
+  // Update assignments when the date or template changes
   useEffect(() => {
     setAssignments(currentPlan?.assignments || {});
   }, [planId, currentPlan]);
@@ -74,10 +75,10 @@ export default function ServicesTab({ members, schedule }) {
 
   const saveCurrentPlan = () => {
     const plan = { id: planId, date, templateId, templateName: template.name, assignments, updatedAt: new Date().toISOString() };
-    const next = [plan, ...plans.filter(p => p.id !== planId)].sort((a, b) => b.date.localeCompare(a.date));
+    const next = [plan, ...(plans || []).filter(p => p.id !== planId)].sort((a, b) => b.date.localeCompare(a.date));
     setPlans(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    alert("Saved!");
+    alert("Plan saved successfully!");
   };
 
   return (
@@ -92,8 +93,12 @@ export default function ServicesTab({ members, schedule }) {
       </div>
 
       <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))' }}>
-        {template.slots.map(slot => {
-          const options = members.filter(m => m.serviceSkills?.includes(slot.skill) || m.leadershipRole === slot.skill);
+        {(template.slots || []).map(slot => {
+          // SAFETY FIX: Guard against missing serviceSkills array
+          const options = (members || []).filter(m => 
+            (m.serviceSkills && m.serviceSkills.includes(slot.skill)) || 
+            m.leadershipRole === slot.skill
+          );
           
           return (
             <div key={slot.id} className="card" style={{ padding: '16px', background: '#fbfbfc', border: '1px solid #eee' }}>
@@ -105,7 +110,9 @@ export default function ServicesTab({ members, schedule }) {
               >
                 <option value="">— Unassigned —</option>
                 {options.map(m => (
-                  <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>
+                  <option key={m.id} value={m.id}>
+                    {m.firstName || 'Unknown'} {m.lastName || ''}
+                  </option>
                 ))}
               </select>
             </div>
