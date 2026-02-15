@@ -7,12 +7,10 @@ import { generateScheduleLogic, getMonthDays } from './utils/scheduleLogic';
 import { sendInviteEmail } from './services/email';
 import { exportToCSV, importFromCSV, exportToPDF } from './utils/exportUtils';
 
-// Tab Components
+// Tab & Page Components
 import DirectoryTab from './components/tabs/DirectoryTab';
 import CalendarTab from './components/tabs/CalendarTab';
 import ServicesTab from './components/tabs/ServicesTab';
-
-// NEW: Page Component
 import AccountPage from './components/pages/AccountPage';
 
 // Modal Components
@@ -41,11 +39,12 @@ export default function ChurchScheduleApp() {
   const [pendingInvites, setPendingInvites] = useState([]); 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
+  const [invitationData, setInvitationData] = useState(null); 
 
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [view, setView] = useState('directory');
-  const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard' or 'account'
+  const [currentPage, setCurrentPage] = useState('dashboard');
   
   const [showSettings, setShowSettings] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
@@ -75,6 +74,18 @@ export default function ChurchScheduleApp() {
         auth.current = window.firebase.auth();
         db.current = window.firebase.firestore();
         storage.current = window.firebase.storage();
+
+        const inviteCode = new URLSearchParams(window.location.search).get('invite');
+        if (inviteCode) {
+          const doc = await db.current.collection('invitations').doc(inviteCode).get();
+          if (doc.exists) {
+            const d = doc.data();
+            setInvitationData(d);
+            setChurchName(d.churchName);
+            setChurchNameLocked(true);
+            setAuthView('register');
+          }
+        }
 
         auth.current.onAuthStateChanged((u) => {
           setUser(u); setAuthLoading(false);
@@ -140,19 +151,63 @@ export default function ChurchScheduleApp() {
   const handleUpdateSelf = async (updatedData) => {
     try {
       await db.current.collection('users').doc(user.uid).update(updatedData);
-      const updatedMembers = members.map(m => m.id === user.uid ? { ...m, ...updatedData } : m);
-      setMembers(updatedMembers);
-    } catch (err) { alert("Failed to update directory entry."); }
+      setMembers(prev => prev.map(m => m.id === user.uid ? { ...m, ...updatedData } : m));
+    } catch (err) { alert("Update failed."); }
+  };
+
+  const handleLogin = (e) => { 
+    e.preventDefault(); 
+    auth.current.signInWithEmailAndPassword(authEmail, authPassword).catch(err => setAuthError(err.message)); 
+  };
+  
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
+      await r.user.updateProfile({ displayName: authName });
+      const targetOrgId = invitationData?.orgId || ('org_' + Math.random().toString(36).substring(2, 12));
+      const firstName = authName.split(' ')[0] || '';
+      const lastName = authName.split(' ').slice(1).join(' ') || '';
+      
+      const newMember = { id: r.user.uid, firstName, lastName, email: authEmail, isSpeaker: false, serviceSkills: [], leadershipRole: "", familyId: "", availability: {}, blockOffDates: [], repeatRules: [] };
+
+      if (!invitationData) {
+        await db.current.collection('organizations').doc(targetOrgId).set({ churchName, ownerUid: r.user.uid, members: [newMember], createdAt: new Date().toISOString() });
+      } else {
+        const orgRef = db.current.collection('organizations').doc(targetOrgId);
+        await db.current.runTransaction(async (t) => {
+          const doc = await t.get(orgRef);
+          if (doc.exists) t.update(orgRef, { members: [...(doc.data().members || []), newMember] });
+        });
+      }
+      await db.current.collection('users').doc(r.user.uid).set({ email: authEmail, name: authName, orgId: targetOrgId, role: invitationData?.role || 'owner', createdAt: new Date().toISOString() });
+      window.location.reload();
+    } catch (err) { setAuthError(err.message); }
   };
 
   const handleLogout = () => auth.current.signOut().then(() => window.location.reload());
-  const getSpeakerName = (id) => { const s = members.find(m => m.id === id); return s ? `${s.firstName} ${s.lastName}` : ''; };
+  const getSpeakerName = (id) => { const s = (members || []).find(m => m.id === id); return s ? `${s.firstName} ${s.lastName}` : ''; };
 
   if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'Outfit' }}>Loading...</div>;
 
+  // --- RESTORED AUTH UI ---
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      {/* Auth UI omitted for length - remains as previously defined */}
+      <style>{`* { box-sizing: border-box; font-family: 'Outfit', sans-serif !important; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; }`}</style>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <img src={logoIcon} alt="Logo" style={{ height: '60px', marginBottom: '16px' }} />
+        <h2 style={{ textAlign: 'center', color: '#1e3a5f', marginBottom: '24px' }}>Church Collab App</h2>
+        <form onSubmit={authView === 'login' ? handleLogin : handleRegister} style={{ width: '100%' }}>
+          {authView === 'register' && <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
+          <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
+          <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
+          <button className="btn-primary" style={{width: '100%', padding: '12px', fontWeight: 'bold'}} type="submit">{authView === 'login' ? 'Login' : 'Sign Up'}</button>
+          {authError && <p style={{color: 'red', fontSize: '11px', marginTop: '10px'}}>{authError}</p>}
+        </form>
+        <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ border: 'none', background: 'none', marginTop: '12px', color: '#1e3a5f', cursor: 'pointer' }}>
+          {authView === 'login' ? "Need an account? Sign Up" : "Back to Login"}
+        </button>
+      </div>
     </div>
   );
 
@@ -166,26 +221,26 @@ export default function ChurchScheduleApp() {
         .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px; }
         .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
-        .avatar-header { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; border: 1px solid #ddd; }
+        .avatar-header { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid #ddd; }
       `}</style>
 
-      <header style={{ background: '#f3f4f6', padding: '16px 0', borderBottom: '1px solid #e5e7eb' }}>
+      <header style={{ background: '#f3f4f6', padding: '12px 0', borderBottom: '1px solid #e5e7eb' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer' }} onClick={() => setCurrentPage('dashboard')}>
             <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
             <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{padding: '8px 16px'}} onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
             <div style={{ position: 'relative' }} ref={dropdownRef}>
               <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-                <img src={members.find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-header" alt="Me" />
-                <span>Account ▼</span>
+                <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-header" alt="Me" />
+                <span>My Account ▼</span>
               </button>
               {showProfileMenu && (
                 <div style={{ position: 'absolute', top: '110%', right: 0, background: 'white', border: '1px solid #eee', borderRadius: '12px', width: '180px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>My Profile</button>
-                  <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '14px', borderTop: '1px solid #eee' }}>Sign Out</button>
+                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer' }}>My Profile</button>
+                  <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', borderTop: '1px solid #eee' }}>Sign Out</button>
                 </div>
               )}
             </div>
@@ -195,35 +250,29 @@ export default function ChurchScheduleApp() {
 
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
         {currentPage === 'account' ? (
-          <AccountPage 
-            user={user} 
-            memberData={members.find(m => m.id === user.uid) || {}} 
-            onUpdate={handleUpdateSelf} 
-            onBack={() => setCurrentPage('dashboard')} 
-            storage={storage.current}
-          />
+          <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
         ) : (
           <>
-            <h2 style={{ color: '#1e3a5f', marginBottom: '24px', fontWeight: '700', paddingLeft: '16px', borderLeft: '4px solid #FF8C37' }}>{churchName}</h2>
-            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', marginBottom: '24px' }}>
+            <h2 style={{ color: '#1e3a5f', marginBottom: '20px', fontWeight: '700', borderLeft: '4px solid #FF8C37', paddingLeft: '16px' }}>{churchName}</h2>
+            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', marginBottom: '24px', overflowX: 'auto' }}>
               <button className={'nav-tab ' + (view === 'directory' ? 'active' : '')} onClick={() => setView('directory')}>👥 Directory</button>
               <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
               <button className={'nav-tab ' + (view === 'services' ? 'active' : '')} onClick={() => setView('services')}>🛠️ Services</button>
             </nav>
 
             {view === 'directory' ? (
-              <DirectoryTab members={members} families={families} userRole={userRole} setEditingMember={setEditingMember} />
+              <DirectoryTab members={members || []} families={families || []} userRole={userRole} setEditingMember={setEditingMember} />
             ) : view === 'services' ? (
-              <ServicesTab members={members} schedule={schedule} />
+              <ServicesTab members={members || []} schedule={schedule || {}} />
             ) : (
-              <CalendarTab selectedMonth={selectedMonth} schedule={schedule} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
+              <CalendarTab selectedMonth={selectedMonth} schedule={schedule || {}} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
             )}
           </>
         )}
       </main>
 
-      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} />
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} />
+      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members || []} setMembers={setMembers} families={families || []} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} />
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members || []} pendingInvites={pendingInvites} />
     </div>
   );
 }
