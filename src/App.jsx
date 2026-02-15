@@ -134,7 +134,7 @@ export default function ChurchScheduleApp() {
     }
   }, [members, families, schedule, serviceSettings, churchName]);
 
-  // --- RESTORED HANDLERS ---
+  // --- HANDLERS ---
   const handleUpdateSelf = async (updatedData) => {
     try {
       const updatedMembers = members.map(m => m.id === user.uid ? { ...m, ...updatedData } : m);
@@ -146,12 +146,22 @@ export default function ChurchScheduleApp() {
   };
 
   const handleGenerateSchedule = () => {
-    const speakers = members.filter(m => m.isSpeaker);
-    if (speakers.length === 0) return alert("No speakers found. Ensure members have 'Enable for Schedule Generator' checked in their profile.");
+    const speakers = (members || []).filter(m => m.isSpeaker);
+    if (speakers.length === 0) {
+      return alert("No speakers found. Ensure members have 'Enable for Schedule Generator' checked in their profile.");
+    }
     
+    const beforeCount = Object.keys(schedule).length;
     const newSchedule = generateScheduleLogic(selectedMonth, members, serviceSettings, schedule);
-    setSchedule(newSchedule);
-    setView('calendar'); 
+    const afterCount = Object.keys(newSchedule).length;
+    
+    if (beforeCount === afterCount) {
+      alert("No new assignments were added. This usually means the month is already full or no speakers are available.");
+    } else {
+      setSchedule(newSchedule);
+      setView('calendar'); 
+      alert(`Successfully generated ${afterCount - beforeCount} new assignments!`);
+    }
   };
 
   const cancelInvite = async (id) => {
@@ -199,7 +209,7 @@ export default function ChurchScheduleApp() {
   };
 
   const handleClearMonth = () => {
-    if (!window.confirm("Clear month?")) return;
+    if (!window.confirm("Clear all assignments for this month?")) return;
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach(key => {
@@ -226,6 +236,7 @@ export default function ChurchScheduleApp() {
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
         <img src={logoIcon} style={{ height: '60px', marginBottom: '16px' }} alt="Logo" />
+        <h2 style={{ color: '#1e3a5f', marginBottom: '24px', fontFamily: 'Outfit' }}>Church Collab App</h2>
         <form onSubmit={handleLogin} style={{ width: '100%', display: 'grid', gap: '12px' }}>
           <input className="input-field" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="input-field" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
@@ -241,8 +252,10 @@ export default function ChurchScheduleApp() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; font-family: 'Outfit', sans-serif !important; }
-        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-primary:hover { background: #162a45; transform: translateY(-1px); }
         .btn-secondary { background: white; color: #1e3a5f; border: 2px solid #e5e7eb; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .btn-secondary:hover { border-color: #1e3a5f; }
         .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); padding: 24px; border: 1px solid #e5e7eb; }
         .nav-tab { padding: 16px 24px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; font-size: 15px; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
@@ -261,18 +274,20 @@ export default function ChurchScheduleApp() {
             <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
             <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
-          <div style={{ position: 'relative' }} ref={dropdownRef}>
-            <button className="btn-secondary" style={{ padding: '4px 12px', border: '2px solid #e5e7eb' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ position: 'relative' }} ref={dropdownRef}>
+              <button className="btn-secondary" style={{ padding: '4px 12px', border: '2px solid #e5e7eb' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
                 <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} className="avatar-circle" alt="Me" />
-                <span style={{ fontWeight: '800' }}>Account ▼</span>
-            </button>
-            {showProfileMenu && (
-              <div className="actions-dropdown">
-                <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">My Profile</button>
-                {['owner', 'admin'].includes(userRole) && <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
-                <button onClick={() => auth.current.signOut()} className="dropdown-item" style={{ color: '#dc2626', borderTop: '1px solid #f3f4f6' }}>Sign Out</button>
-              </div>
-            )}
+                <span style={{ fontWeight: '700' }}>Account ▼</span>
+              </button>
+              {showProfileMenu && (
+                <div className="actions-dropdown">
+                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">My Profile</button>
+                  {['owner', 'admin'].includes(userRole) && <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
+                  <button onClick={() => auth.current.signOut()} className="dropdown-item" style={{ color: '#dc2626', borderTop: '1px solid #f3f4f6' }}>Sign Out</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -292,7 +307,7 @@ export default function ChurchScheduleApp() {
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '28px', fontWeight: '800' }}>{churchName}</h2>
+              <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '28px', fontWeight: '800' }}>{churchName || 'Your Congregation'}</h2>
               <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
                 <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>⚡ Actions ▼</button>
                 {showActions && (
@@ -312,7 +327,7 @@ export default function ChurchScheduleApp() {
               </div>
             </div>
 
-            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #e5e7eb', marginBottom: '32px' }}>
+            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #e5e7eb', marginBottom: '32px', overflowX: 'auto' }}>
               <button className={'nav-tab ' + (view === 'directory' ? 'active' : '')} onClick={() => setView('directory')}>👥 Directory</button>
               <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Teaching Calendar</button>
               <button className={'nav-tab ' + (view === 'services' ? 'active' : '')} onClick={() => setView('services')}>🛠️ Service Plans</button>
