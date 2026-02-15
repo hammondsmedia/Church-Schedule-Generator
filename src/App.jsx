@@ -57,6 +57,7 @@ export default function ChurchScheduleApp() {
   const db = useRef(null);
   const auth = useRef(null);
   const storage = useRef(null);
+  const dropdownRef = useRef(null);
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -64,18 +65,21 @@ export default function ChurchScheduleApp() {
       try {
         await loadFirebaseScripts();
         
+        // Final sanity check for window objects
+        if (!window.firebase || !window.firebase.auth) {
+          throw new Error("Firebase SDK components missing.");
+        }
+
         if (!window.firebase.apps.length) {
           window.firebase.initializeApp(FIREBASE_CONFIG);
         }
         
         auth.current = window.firebase.auth();
         db.current = window.firebase.firestore();
-
-        // Safety Fix: Check if storage function exists before calling
+        
+        // Sequential loader fixed the storage instantiation error
         if (typeof window.firebase.storage === 'function') {
           storage.current = window.firebase.storage();
-        } else {
-          console.warn("Firebase Storage SDK not detected. Profile pictures disabled.");
         }
 
         auth.current.onAuthStateChanged((u) => {
@@ -86,12 +90,20 @@ export default function ChurchScheduleApp() {
 
         setFirebaseReady(true);
       } catch (err) {
-        console.error("Initialization Failed:", err);
-        setAuthError("Database connection failed. Please refresh your browser.");
+        console.error("Critical Init Error:", err);
+        setAuthError("Connection failed. Please check your internet and refresh.");
         setAuthLoading(false);
       }
     };
     init();
+
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const loadUserData = async (uid) => {
@@ -114,17 +126,19 @@ export default function ChurchScheduleApp() {
           }
         }
       }
-    } catch (err) { console.error('Error loading data', err); }
+    } catch (err) { console.error('Data Load Error:', err); }
     setDataLoading(false);
   };
 
   // --- AUTH HANDLERS ---
   const handleLogin = async (e) => {
     if (e) e.preventDefault();
-    setAuthError('');
+    if (!firebaseReady) return; // Prevent clicks while loading
     
-    if (!auth.current) return setAuthError("System loading... please wait.");
-    if (!authEmail || !authPassword) return setAuthError("Email and Password required.");
+    setAuthError('');
+    if (!authEmail || !authPassword) {
+      return setAuthError("Please enter your credentials.");
+    }
 
     try {
       await auth.current.signInWithEmailAndPassword(authEmail, authPassword);
@@ -148,13 +162,21 @@ export default function ChurchScheduleApp() {
       await db.current.collection('users').doc(user.uid).delete();
       await auth.current.currentUser.delete();
       window.location.reload();
-    } catch (err) { alert("Please sign out and sign back in before deleting."); }
+    } catch (err) { alert("Security Timeout: Please log out and back in before deleting."); }
   };
 
   const handleLogout = () => auth.current.signOut().then(() => window.location.reload());
   const getSpeakerName = (id) => { const s = (members || []).find(m => m.id === id); return s ? `${s.firstName} ${s.lastName}` : ''; };
 
-  if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'Outfit' }}>Connecting...</div>;
+  if (authLoading) return (
+    <div style={{ display: 'grid', placeItems: 'center', height: '100vh', background: '#1e3a5f', color: 'white', fontFamily: 'Outfit' }}>
+      <div style={{ textAlign: 'center' }}>
+        <img src={logoIcon} style={{ height: '80px', marginBottom: '20px', animation: 'pulse 2s infinite' }} alt="Loading" />
+        <h3>Connecting to Database...</h3>
+      </div>
+      <style>{`@keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }`}</style>
+    </div>
+  );
 
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -167,14 +189,19 @@ export default function ChurchScheduleApp() {
           <input className="auth-in" type="email" placeholder="Email Address" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
           
-          <button className="btn-primary" style={{ width: '100%', padding: '14px', fontWeight: 'bold' }} type="submit">
-            Login
+          <button 
+            className="btn-primary" 
+            style={{ width: '100%', padding: '14px', fontWeight: 'bold', fontSize: '16px', opacity: firebaseReady ? 1 : 0.5 }} 
+            type="submit"
+            disabled={!firebaseReady}
+          >
+            {firebaseReady ? 'Login' : 'Loading...'}
           </button>
           
           {authError && <p style={{ color: '#dc2626', fontSize: '12px', marginTop: '12px', textAlign: 'center', background: '#fee2e2', padding: '8px', borderRadius: '4px' }}>{authError}</p>}
         </form>
         
-        <button onClick={() => setAuthView('register')} style={{ border: 'none', background: 'none', marginTop: '16px', color: '#1e3a5f', cursor: 'pointer' }}>
+        <button onClick={() => setAuthView('register')} style={{ border: 'none', background: 'none', marginTop: '16px', color: '#1e3a5f', cursor: 'pointer', fontSize: '14px' }}>
           Need an account? Sign Up
         </button>
       </div>
@@ -201,16 +228,18 @@ export default function ChurchScheduleApp() {
             <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-              <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-header" alt="Me" />
-              <span>Account ▼</span>
-            </button>
-            {showProfileMenu && (
-              <div style={{ position: 'absolute', top: '60px', right: '24px', background: 'white', border: '1px solid #eee', borderRadius: '12px', width: '180px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>My Profile</button>
-                <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', borderTop: '1px solid #eee' }}>Sign Out</button>
-              </div>
-            )}
+            <div style={{ position: 'relative' }} ref={dropdownRef}>
+              <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
+                <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-header" alt="Me" />
+                <span>My Account ▼</span>
+              </button>
+              {showProfileMenu && (
+                <div style={{ position: 'absolute', top: '110%', right: 0, background: 'white', border: '1px solid #eee', borderRadius: '12px', width: '180px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer' }}>My Profile</button>
+                  <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', borderTop: '1px solid #eee' }}>Sign Out</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
