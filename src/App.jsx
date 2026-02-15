@@ -59,6 +59,7 @@ export default function ChurchScheduleApp() {
   const storage = useRef(null);
   const fileInputRef = useRef(null);
   const dropdownRef = useRef(null);
+  const isClearingRef = useRef(false); // Prevents auto-save from overwriting deletions
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -123,8 +124,9 @@ export default function ChurchScheduleApp() {
     setPendingInvites(inviteSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
+  // --- AUTO-SAVE LOGIC ---
   useEffect(() => {
-    if (user && firebaseReady && !dataLoading && orgId && ['owner', 'admin'].includes(userRole)) {
+    if (user && firebaseReady && !dataLoading && !isClearingRef.current && orgId && ['owner', 'admin'].includes(userRole)) {
       const t = setTimeout(() => {
         db.current.collection('organizations').doc(orgId).set({ 
           members, families, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() 
@@ -134,7 +136,7 @@ export default function ChurchScheduleApp() {
     }
   }, [members, families, schedule, serviceSettings, churchName]);
 
-  // --- HANDLERS ---
+  // --- CORE HANDLERS ---
   const handleUpdateSelf = async (updatedData) => {
     try {
       const updatedMembers = members.map(m => m.id === user.uid ? { ...m, ...updatedData } : m);
@@ -145,25 +147,37 @@ export default function ChurchScheduleApp() {
     } catch (err) { alert("Save failed."); }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("CRITICAL: This permanently deletes your account. Proceed?")) return;
+    try {
+      const updatedMembers = (members || []).filter(m => m.id !== user.uid);
+      await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
+      await db.current.collection('users').doc(user.uid).delete();
+      await auth.current.currentUser.delete();
+      window.location.reload();
+    } catch (err) { alert("Session timeout. Please log out and back in before deleting."); }
+  };
+
   const handleGenerateSchedule = () => {
     const speakers = (members || []).filter(m => m.isSpeaker);
-    if (speakers.length === 0) return alert("No speakers found. Enable members for the generator in the Directory.");
+    if (speakers.length === 0) return alert("Generation Failed: No members have 'Enable for Schedule Generator' checked.");
     
     const beforeCount = Object.keys(schedule).length;
     const newSchedule = generateScheduleLogic(selectedMonth, members, serviceSettings, schedule);
     const afterCount = Object.keys(newSchedule).length;
     
     if (beforeCount === afterCount) {
-      alert("No new assignments added. Check your speaker availability settings.");
+      alert("No new assignments added. Check availability settings.");
     } else {
       setSchedule(newSchedule);
       setView('calendar'); 
-      alert(`Success! Generated ${afterCount - beforeCount} assignments.`);
+      alert(`Successfully generated ${afterCount - beforeCount} assignments!`);
     }
   };
 
   const handleClearMonth = async () => {
     if (!window.confirm("Clear all assignments for this month?")) return;
+    isClearingRef.current = true;
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach(key => {
@@ -179,8 +193,36 @@ export default function ChurchScheduleApp() {
       setSchedule(newSchedule);
       setShowActions(false);
       alert("Month cleared.");
-    } catch (err) { alert("Failed to clear database."); }
-    finally { setDataLoading(false); }
+    } catch (err) { alert("Clear failed."); }
+    finally { setDataLoading(false); setTimeout(() => { isClearingRef.current = false; }, 2000); }
+  };
+
+  const handleDeleteSlot = async (slotKey) => {
+    if (!window.confirm("Remove this assignment?")) return;
+    isClearingRef.current = true;
+    const newSchedule = { ...schedule };
+    delete newSchedule[slotKey];
+    try {
+      setDataLoading(true);
+      await db.current.collection('organizations').doc(orgId).update({ schedule: newSchedule });
+      setSchedule(newSchedule);
+      setEditingNote(null);
+    } catch (err) { alert("Failed to delete."); }
+    finally { setDataLoading(false); setTimeout(() => { isClearingRef.current = false; }, 1000); }
+  };
+
+  const handleSaveNote = (slotKey, noteText) => {
+    setSchedule(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], note: noteText } }));
+    setEditingNote(null);
+  };
+
+  const handleImportCSV = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const updatedSchedule = await importFromCSV(file, members, schedule);
+      setSchedule(updatedSchedule);
+      setShowActions(false);
+    }
   };
 
   const cancelInvite = async (id) => { await db.current.collection('invitations').doc(id).delete(); fetchOrgData(orgId); };
@@ -193,13 +235,8 @@ export default function ChurchScheduleApp() {
   const generateInviteLink = async (email, role) => {
     const code = Math.random().toString(36).substring(2, 10);
     await db.current.collection('invitations').doc(code).set({ orgId, email, role, churchName, status: 'pending', expiresAt: new Date(Date.now() + 604800000).toISOString() });
-    alert("Invite generated: " + code);
+    alert("Code: " + code);
     fetchOrgData(orgId);
-  };
-
-  const handleSaveNote = (slotKey, noteText) => {
-    setSchedule(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], note: noteText } }));
-    setEditingNote(null);
   };
 
   const handleLogin = (e) => { 
@@ -274,7 +311,7 @@ export default function ChurchScheduleApp() {
 
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 24px' }}>
         {currentPage === 'account' ? (
-          <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
+          <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onDelete={handleDeleteAccount} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
         ) : currentPage === 'settings' ? (
           <SettingsPage onBack={() => setCurrentPage('dashboard')} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} cancelInvite={cancelInvite} generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} />
         ) : (
@@ -317,7 +354,7 @@ export default function ChurchScheduleApp() {
               ) : view === 'services' ? (
                 <ServicesTab members={members} schedule={schedule} />
               ) : (
-                <CalendarTab selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} schedule={schedule} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
+                <CalendarTab selectedMonth={selectedMonth} schedule={schedule} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
               )}
             </div>
           </>
@@ -325,7 +362,7 @@ export default function ChurchScheduleApp() {
       </main>
 
       <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} />
-      <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} userRole={userRole} setAssigningSlot={setAssigningSlot} />
+      <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} handleDeleteSlot={handleDeleteSlot} userRole={userRole} setAssigningSlot={setAssigningSlot} />
 
       {assigningSlot && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
