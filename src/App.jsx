@@ -148,6 +148,12 @@ export default function ChurchScheduleApp() {
     }
   }, [members, families, schedule, serviceSettings, churchName]);
 
+  // --- HANDLERS ---
+  const handleGenerateSchedule = () => {
+    setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
+    setView('calendar'); 
+  };
+
   const handleUpdateSelf = async (updatedData) => {
     try {
       await db.current.collection('users').doc(user.uid).update(updatedData);
@@ -155,13 +161,36 @@ export default function ChurchScheduleApp() {
     } catch (err) { alert("Update failed."); }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("CRITICAL: This will permanently delete your account and remove you from the directory. This cannot be undone. Proceed?")) return;
+    
+    try {
+      // 1. Remove from organization members list
+      const updatedMembers = members.filter(m => m.id !== user.uid);
+      await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
+      
+      // 2. Delete user document
+      await db.current.collection('users').doc(user.uid).delete();
+      
+      // 3. Delete Auth record
+      await auth.current.currentUser.delete();
+      
+      window.location.reload();
+    } catch (err) {
+      alert("For security, please sign out and sign back in before deleting your account.");
+    }
+  };
+
   const handleLogin = (e) => { 
     e.preventDefault(); 
-    auth.current.signInWithEmailAndPassword(authEmail, authPassword).catch(err => setAuthError(err.message)); 
+    setAuthError('');
+    auth.current.signInWithEmailAndPassword(authEmail, authPassword)
+      .catch(err => setAuthError(err.message)); 
   };
   
   const handleRegister = async (e) => {
     e.preventDefault();
+    setAuthError('');
     try {
       const r = await auth.current.createUserWithEmailAndPassword(authEmail, authPassword);
       await r.user.updateProfile({ displayName: authName });
@@ -190,7 +219,6 @@ export default function ChurchScheduleApp() {
 
   if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'Outfit' }}>Loading...</div>;
 
-  // --- RESTORED AUTH UI ---
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <style>{`* { box-sizing: border-box; font-family: 'Outfit', sans-serif !important; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; }`}</style>
@@ -230,7 +258,7 @@ export default function ChurchScheduleApp() {
             <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
             <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{padding: '8px 16px'}} onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
             <div style={{ position: 'relative' }} ref={dropdownRef}>
               <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
@@ -239,7 +267,7 @@ export default function ChurchScheduleApp() {
               </button>
               {showProfileMenu && (
                 <div style={{ position: 'absolute', top: '110%', right: 0, background: 'white', border: '1px solid #eee', borderRadius: '12px', width: '180px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer' }}>My Profile</button>
+                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>My Profile</button>
                   <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', borderTop: '1px solid #eee' }}>Sign Out</button>
                 </div>
               )}
@@ -250,7 +278,7 @@ export default function ChurchScheduleApp() {
 
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
         {currentPage === 'account' ? (
-          <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
+          <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onDelete={handleDeleteAccount} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
         ) : (
           <>
             <h2 style={{ color: '#1e3a5f', marginBottom: '20px', fontWeight: '700', borderLeft: '4px solid #FF8C37', paddingLeft: '16px' }}>{churchName}</h2>
