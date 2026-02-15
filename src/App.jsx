@@ -148,7 +148,7 @@ export default function ChurchScheduleApp() {
   const handleGenerateSchedule = () => {
     const speakers = (members || []).filter(m => m.isSpeaker);
     if (speakers.length === 0) {
-      return alert("No speakers found. Ensure members have 'Enable for Schedule Generator' checked in their profile.");
+      return alert("Generation Failed: No members have 'Enable for Schedule Generator' checked in their profiles.");
     }
     
     const beforeCount = Object.keys(schedule).length;
@@ -156,7 +156,7 @@ export default function ChurchScheduleApp() {
     const afterCount = Object.keys(newSchedule).length;
     
     if (beforeCount === afterCount) {
-      alert("No new assignments were added. This usually means the month is already full or no speakers are available.");
+      alert(`No new assignments added. Diagnostic: ${speakers.length} speakers identified, but they were either blocked off or already fully assigned.`);
     } else {
       setSchedule(newSchedule);
       setView('calendar'); 
@@ -209,7 +209,7 @@ export default function ChurchScheduleApp() {
   };
 
   const handleClearMonth = () => {
-    if (!window.confirm("Clear all assignments for this month?")) return;
+    if (!window.confirm("Clear assignments for this month?")) return;
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach(key => {
@@ -252,20 +252,18 @@ export default function ChurchScheduleApp() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; font-family: 'Outfit', sans-serif !important; }
-        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
-        .btn-primary:hover { background: #162a45; transform: translateY(-1px); }
+        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; }
         .btn-secondary { background: white; color: #1e3a5f; border: 2px solid #e5e7eb; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        .btn-secondary:hover { border-color: #1e3a5f; }
         .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); padding: 24px; border: 1px solid #e5e7eb; }
         .nav-tab { padding: 16px 24px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; font-size: 15px; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
         .input-field { width: 100%; padding: 14px; border: 2px solid #e5e0d8; border-radius: 10px; font-size: 15px; outline: none; }
-        .calendar-bar { padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; margin: 2px 0; cursor: pointer; display: block; width: 100%; text-align: left; border: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .calendar-bar { padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; margin: 2px 0; cursor: pointer; display: block; width: 100%; text-align: left; border: none; }
         .bar-empty { background: #f9fafb; color: #cbd5e1; border: 1px dashed #e2e8f0 !important; }
+        .avatar-circle { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
         .actions-dropdown { position: absolute; top: 110%; right: 0; background: white; border: 1px solid #eee; borderRadius: 12px; width: 220px; z-index: 1000; boxShadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; }
         .dropdown-item { width: 100%; padding: 10px 16px; text-align: left; border: none; background: none; cursor: pointer; font-size: 14px; border-radius: 8px; color: #1e3a5f; font-weight: 500; }
         .dropdown-item:hover { background: #f3f4f6; }
-        .avatar-circle { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
       `}</style>
 
       <header style={{ background: '#ffffff', padding: '16px 0', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 1000 }}>
@@ -274,11 +272,11 @@ export default function ChurchScheduleApp() {
             <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
             <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ position: 'relative' }} ref={dropdownRef}>
-              <button className="btn-secondary" style={{ padding: '4px 12px', border: '2px solid #e5e7eb' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
+              <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
                 <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} className="avatar-circle" alt="Me" />
-                <span style={{ fontWeight: '700' }}>Account ▼</span>
+                <span style={{ fontWeight: '800' }}>Account ▼</span>
               </button>
               {showProfileMenu && (
                 <div className="actions-dropdown">
@@ -296,19 +294,17 @@ export default function ChurchScheduleApp() {
         {currentPage === 'account' ? (
           <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
         ) : currentPage === 'settings' ? (
-          <SettingsPage 
-            onBack={() => setCurrentPage('dashboard')} 
-            serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} 
-            userRole={userRole} user={user} members={members} 
-            pendingInvites={pendingInvites} cancelInvite={cancelInvite} 
-            generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} 
-            removeMember={removeMember}
-          />
+          <SettingsPage onBack={() => setCurrentPage('dashboard')} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} cancelInvite={cancelInvite} generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} />
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '28px', fontWeight: '800' }}>{churchName || 'Your Congregation'}</h2>
               <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>←</button>
+                    <span style={{ fontWeight: '800', minWidth: '140px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                    <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>→</button>
+                </div>
                 <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>⚡ Actions ▼</button>
                 {showActions && (
                   <div className="actions-dropdown">
@@ -323,11 +319,11 @@ export default function ChurchScheduleApp() {
                     )}
                   </div>
                 )}
-                {['owner', 'admin'].includes(userRole) && <button className="btn-primary" style={{ padding: '10px 24px', fontWeight: '800' }} onClick={handleGenerateSchedule}>✨ Generate</button>}
+                {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={handleGenerateSchedule}>✨ Generate</button>}
               </div>
             </div>
 
-            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #e5e7eb', marginBottom: '32px', overflowX: 'auto' }}>
+            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #e5e7eb', marginBottom: '32px' }}>
               <button className={'nav-tab ' + (view === 'directory' ? 'active' : '')} onClick={() => setView('directory')}>👥 Directory</button>
               <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Teaching Calendar</button>
               <button className={'nav-tab ' + (view === 'services' ? 'active' : '')} onClick={() => setView('services')}>🛠️ Service Plans</button>
@@ -339,7 +335,7 @@ export default function ChurchScheduleApp() {
               ) : view === 'services' ? (
                 <ServicesTab members={members} schedule={schedule} />
               ) : (
-                <CalendarTab selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} schedule={schedule} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
+                <CalendarTab selectedMonth={selectedMonth} schedule={schedule} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
               )}
             </div>
           </>
@@ -362,8 +358,6 @@ export default function ChurchScheduleApp() {
           </div>
         </div>
       )}
-      
-      <style>{`.fade-in { animation: fadeIn 0.4s ease-out; } @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
     </div>
   );
 }
