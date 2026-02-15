@@ -25,9 +25,13 @@ export default function AccountPage({ user, memberData, onUpdate, onDelete, onBa
     setUploading(false);
   };
 
-  const handleSave = async () => {
-    await onUpdate(form);
-    alert("Profile saved!");
+  const handleDownloadData = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(memberData, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `My_Data.json`);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
   };
 
   return (
@@ -35,6 +39,7 @@ export default function AccountPage({ user, memberData, onUpdate, onDelete, onBa
       <button className="btn-secondary" onClick={onBack} style={{ marginBottom: '24px' }}>← Back to Dashboard</button>
       
       <div className="card" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '40px', padding: '48px', marginBottom: '24px' }}>
+        
         {/* LEFT SIDE: PHOTO SECTION */}
         <div style={{ textAlign: 'center', borderRight: '1px solid #eee', paddingRight: '40px' }}>
           <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -56,7 +61,7 @@ export default function AccountPage({ user, memberData, onUpdate, onDelete, onBa
         {/* RIGHT SIDE: BASIC INFO FORM */}
         <div>
           <h2 style={{ marginTop: 0, marginBottom: '8px', fontSize: '22px' }}>Basic Information</h2>
-          <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>Update your personal details here.</p>
+          <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>These changes will be visible in the Congregation Directory.</p>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
             <div>
@@ -72,20 +77,18 @@ export default function AccountPage({ user, memberData, onUpdate, onDelete, onBa
               <input className="input-field" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
             </div>
           </div>
-          <button className="btn-primary" style={{ marginTop: '30px', width: '100%' }} onClick={handleSave}>Save Changes</button>
+          <button className="btn-primary" style={{ marginTop: '30px', width: '100%' }} onClick={() => onUpdate(form)}>Save Changes</button>
         </div>
       </div>
 
-      {/* GDPR SECTION: DELETE ACCOUNT */}
+      {/* GDPR SECTION */}
       <div className="card" style={{ padding: '32px', border: '1px solid #fee2e2', background: '#fffcfc' }}>
         <h3 style={{ color: '#dc2626', marginTop: 0 }}>Security & Privacy</h3>
-        <p style={{ color: '#666', fontSize: '14px' }}>Once you delete your account, all your data will be permanently removed from our organization directory. This action is not reversible.</p>
-        <button 
-          onClick={onDelete} 
-          style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}
-        >
-          Delete My Account
-        </button>
+        <p style={{ color: '#666', fontSize: '14px' }}>Manage your data and account status for GDPR compliance.</p>
+        <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+          <button onClick={handleDownloadData} className="btn-secondary" style={{ borderColor: '#ddd', color: '#666' }}>Download My Data</button>
+          <button onClick={onDelete} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Delete Account</button>
+        </div>
       </div>
     </div>
   );
