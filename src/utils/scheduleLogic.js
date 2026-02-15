@@ -11,7 +11,11 @@ export const getMonthDays = (date) => {
 };
 
 export const isSpeakerAvailable = (member, date, type) => {
-  if (!member.isSpeaker || !member.availability?.[type]) return false;
+  // Safety: Default to false if flags are missing
+  if (!member.isSpeaker) return false;
+  if (!member.availability || member.availability[type] === undefined) return false;
+  if (!member.availability[type]) return false;
+
   const ds = date.toISOString().split('T')[0];
   for (const b of (member.blockOffDates || [])) if (ds >= b.start && ds <= b.end) return false;
   return true;
@@ -56,7 +60,6 @@ export const generateScheduleLogic = (selectedMonth, members, serviceSettings, e
     let av = members.filter(m => isSpeakerAvailable(m, d, type) && m.id !== exId);
     const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
     const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
-    // PRIORITY REMOVED: Just shuffle and sort by count
     return shuffleArray(av, seed + off).sort(sort);
   };
 
