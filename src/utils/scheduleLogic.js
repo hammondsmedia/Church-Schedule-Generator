@@ -48,14 +48,13 @@ export const generateScheduleLogic = (selectedMonth, members, serviceSettings, e
       sc++;
       if (serviceSettings.sundayMorning.enabled) slots.sundayMorning.push({ dk, date, week: sc });
       if (serviceSettings.sundayEvening.enabled) slots.sundayEvening.push({ dk, date, week: sc });
-      // Communion only if enabled
       if (serviceSettings.communion.enabled) slots.communion.push({ dk, date, week: sc });
     }
     if (dw === 3 && serviceSettings.wednesdayEvening.enabled) slots.wednesdayEvening.push({ dk, date, week: Math.ceil(date.getDate() / 7) });
   });
 
   const getAvailable = (d, type, exId = null) => {
-    // STRICT EXCLUSION: If exId is passed, filter that person out of the available pool
+    // STRICT EXCLUSION: Filters the morning speaker out of the communion pool
     let av = members.filter(m => isSpeakerAvailable(m, d, type) && m.id !== exId);
     const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
     const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
@@ -83,7 +82,7 @@ export const generateScheduleLogic = (selectedMonth, members, serviceSettings, e
   const fill = (t, list, exType = null) => list.forEach(sl => {
     const sk = sl.dk + '-' + t;
     if (!newSchedule[sk]) {
-      // Find person who is morning speaker to EXCLUDE them from communion
+      // Logic: If filling communion, find the morning speaker to exclude them
       const exId = exType ? newSchedule[sl.dk + '-' + exType]?.speakerId : null;
       const sel = getAvailable(sl.date, t, exId)[0];
       if (sel) { 
@@ -94,8 +93,7 @@ export const generateScheduleLogic = (selectedMonth, members, serviceSettings, e
   });
 
   fill('sundayMorning', slots.sundayMorning); 
-  // STRICT: Use sundayMorning results to exclude speakers from communion
-  fill('communion', slots.communion, 'sundayMorning'); 
+  fill('communion', slots.communion, 'sundayMorning'); // STRICT EXCLUSION ACTIVE
   fill('sundayEvening', slots.sundayEvening); 
   fill('wednesdayEvening', slots.wednesdayEvening);
   
