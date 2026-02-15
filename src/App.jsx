@@ -19,7 +19,7 @@ import MemberProfileModal from './components/modals/MemberProfileModal';
 import NoteModal from './components/modals/NoteModal';
 
 export default function ChurchScheduleApp() {
-  // --- AUTH & INITIALIZATION STATE ---
+  // --- STATE ---
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -29,7 +29,6 @@ export default function ChurchScheduleApp() {
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
   
-  // --- APP DATA STATE ---
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [churchName, setChurchName] = useState('');
@@ -38,12 +37,10 @@ export default function ChurchScheduleApp() {
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   
-  // --- UI NAVIGATION STATE ---
   const [view, setView] = useState('directory');
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [dataLoading, setDataLoading] = useState(false);
 
-  // --- UI TOGGLES ---
   const [showSettings, setShowSettings] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [assigningSlot, setAssigningSlot] = useState(null);
@@ -65,7 +62,6 @@ export default function ChurchScheduleApp() {
   useEffect(() => {
     const init = async () => {
       try {
-        console.log("Initializing Firebase Scripts...");
         await loadFirebaseScripts();
         
         if (!window.firebase.apps.length) {
@@ -74,10 +70,15 @@ export default function ChurchScheduleApp() {
         
         auth.current = window.firebase.auth();
         db.current = window.firebase.firestore();
-        storage.current = window.firebase.storage();
+
+        // Safety Fix: Check if storage function exists before calling
+        if (typeof window.firebase.storage === 'function') {
+          storage.current = window.firebase.storage();
+        } else {
+          console.warn("Firebase Storage SDK not detected. Profile pictures disabled.");
+        }
 
         auth.current.onAuthStateChanged((u) => {
-          console.log("Auth state changed:", u ? u.email : "Logged Out");
           setUser(u);
           setAuthLoading(false);
           if (u) loadUserData(u.uid);
@@ -85,8 +86,8 @@ export default function ChurchScheduleApp() {
 
         setFirebaseReady(true);
       } catch (err) {
-        console.error("Firebase Initialization Failed:", err);
-        setAuthError("Failed to connect to the database. Please refresh.");
+        console.error("Initialization Failed:", err);
+        setAuthError("Database connection failed. Please refresh your browser.");
         setAuthLoading(false);
       }
     };
@@ -117,24 +118,17 @@ export default function ChurchScheduleApp() {
     setDataLoading(false);
   };
 
-  // --- HANDLERS ---
+  // --- AUTH HANDLERS ---
   const handleLogin = async (e) => {
     if (e) e.preventDefault();
     setAuthError('');
     
-    if (!firebaseReady || !auth.current) {
-      return setAuthError("System is still loading. Please wait 5 seconds and try again.");
-    }
-    
-    if (!authEmail || !authPassword) {
-      return setAuthError("Please enter both email and password.");
-    }
+    if (!auth.current) return setAuthError("System loading... please wait.");
+    if (!authEmail || !authPassword) return setAuthError("Email and Password required.");
 
     try {
       await auth.current.signInWithEmailAndPassword(authEmail, authPassword);
-      console.log("Login successful");
     } catch (err) {
-      console.error("Login Error:", err.code, err.message);
       setAuthError(err.message);
     }
   };
@@ -143,26 +137,25 @@ export default function ChurchScheduleApp() {
     try {
       await db.current.collection('users').doc(user.uid).update(updatedData);
       setMembers(prev => prev.map(m => m.id === user.uid ? { ...m, ...updatedData } : m));
-    } catch (err) { alert("Update failed."); }
+    } catch (err) { alert("Sync failed."); }
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm("CRITICAL: This permanently deletes your account. Proceed?")) return;
+    if (!window.confirm("Permanently delete account? This cannot be undone.")) return;
     try {
       const updatedMembers = (members || []).filter(m => m.id !== user.uid);
       await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
       await db.current.collection('users').doc(user.uid).delete();
       await auth.current.currentUser.delete();
       window.location.reload();
-    } catch (err) { alert("For security, please sign out and back in immediately before deleting."); }
+    } catch (err) { alert("Please sign out and sign back in before deleting."); }
   };
 
   const handleLogout = () => auth.current.signOut().then(() => window.location.reload());
   const getSpeakerName = (id) => { const s = (members || []).find(m => m.id === id); return s ? `${s.firstName} ${s.lastName}` : ''; };
 
-  if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'Outfit' }}>Loading...</div>;
+  if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'Outfit' }}>Connecting...</div>;
 
-  // --- LOGIN / REGISTER VIEW ---
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <style>{`* { box-sizing: border-box; font-family: 'Outfit', sans-serif !important; } .auth-in { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 12px; }`}</style>
@@ -171,26 +164,18 @@ export default function ChurchScheduleApp() {
         <h2 style={{ textAlign: 'center', color: '#1e3a5f', marginBottom: '24px' }}>Church Collab App</h2>
         
         <form onSubmit={handleLogin} style={{ width: '100%' }}>
-          {authView === 'register' && (
-            <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />
-          )}
           <input className="auth-in" type="email" placeholder="Email Address" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
           
-          <button 
-            className="btn-primary" 
-            style={{ width: '100%', padding: '14px', fontWeight: 'bold', fontSize: '16px' }} 
-            type="submit"
-            disabled={!firebaseReady}
-          >
-            {authView === 'login' ? 'Login' : 'Create Account'}
+          <button className="btn-primary" style={{ width: '100%', padding: '14px', fontWeight: 'bold' }} type="submit">
+            Login
           </button>
           
           {authError && <p style={{ color: '#dc2626', fontSize: '12px', marginTop: '12px', textAlign: 'center', background: '#fee2e2', padding: '8px', borderRadius: '4px' }}>{authError}</p>}
         </form>
         
-        <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ border: 'none', background: 'none', marginTop: '16px', color: '#1e3a5f', cursor: 'pointer', fontSize: '14px' }}>
-          {authView === 'login' ? "Need an account? Sign Up" : "Back to Login"}
+        <button onClick={() => setAuthView('register')} style={{ border: 'none', background: 'none', marginTop: '16px', color: '#1e3a5f', cursor: 'pointer' }}>
+          Need an account? Sign Up
         </button>
       </div>
     </div>
@@ -216,18 +201,16 @@ export default function ChurchScheduleApp() {
             <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <div style={{ position: 'relative' }}>
-              <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-                <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-header" alt="Me" />
-                <span>My Account ▼</span>
-              </button>
-              {showProfileMenu && (
-                <div style={{ position: 'absolute', top: '110%', right: 0, background: 'white', border: '1px solid #eee', borderRadius: '12px', width: '180px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer' }}>My Profile</button>
-                  <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', borderTop: '1px solid #eee' }}>Sign Out</button>
-                </div>
-              )}
-            </div>
+            <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
+              <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-header" alt="Me" />
+              <span>Account ▼</span>
+            </button>
+            {showProfileMenu && (
+              <div style={{ position: 'absolute', top: '60px', right: '24px', background: 'white', border: '1px solid #eee', borderRadius: '12px', width: '180px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+                <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>My Profile</button>
+                <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', borderTop: '1px solid #eee' }}>Sign Out</button>
+              </div>
+            )}
           </div>
         </div>
       </header>
