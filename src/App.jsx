@@ -59,7 +59,6 @@ export default function ChurchScheduleApp() {
   const storage = useRef(null);
   const fileInputRef = useRef(null);
   const dropdownRef = useRef(null);
-  const isClearingRef = useRef(false); // Prevents auto-save interference
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -124,9 +123,8 @@ export default function ChurchScheduleApp() {
     setPendingInvites(inviteSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
-  // --- UPDATED AUTO-SAVE LOGIC ---
   useEffect(() => {
-    if (user && firebaseReady && !dataLoading && !isClearingRef.current && orgId && ['owner', 'admin'].includes(userRole)) {
+    if (user && firebaseReady && !dataLoading && orgId && ['owner', 'admin'].includes(userRole)) {
       const t = setTimeout(() => {
         db.current.collection('organizations').doc(orgId).set({ 
           members, families, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() 
@@ -136,44 +134,7 @@ export default function ChurchScheduleApp() {
     }
   }, [members, families, schedule, serviceSettings, churchName]);
 
-  // --- UPDATED CLEAR MONTH LOGIC ---
-  const handleClearMonth = async () => {
-    if (!window.confirm("CRITICAL: Delete all assignments for this month? This cannot be undone.")) return;
-    
-    isClearingRef.current = true; // Lock auto-save
-    const year = selectedMonth.getFullYear();
-    const month = selectedMonth.getMonth();
-    const newSchedule = { ...schedule };
-    
-    // Filter out assignments for current month
-    Object.keys(newSchedule).forEach(key => {
-      const parts = key.split('-');
-      if (parts.length >= 3 && parseInt(parts[0]) === year && (parseInt(parts[1]) - 1) === month) {
-        delete newSchedule[key];
-      }
-    });
-
-    try {
-      setDataLoading(true);
-      // Explicitly UPDATE the schedule field to overwrite deleted keys
-      await db.current.collection('organizations').doc(orgId).update({
-        schedule: newSchedule,
-        updatedAt: new Date().toISOString()
-      });
-      
-      setSchedule(newSchedule);
-      setShowActions(false);
-      alert("Month cleared successfully!");
-    } catch (err) {
-      console.error("Clear failed:", err);
-      alert("Failed to sync deletion with database.");
-    } finally {
-      setDataLoading(false);
-      setTimeout(() => { isClearingRef.current = false; }, 2000); // Unlock auto-save
-    }
-  };
-
-  // --- REST OF HANDLERS ---
+  // --- HANDLERS ---
   const handleUpdateSelf = async (updatedData) => {
     try {
       const updatedMembers = members.map(m => m.id === user.uid ? { ...m, ...updatedData } : m);
@@ -186,18 +147,40 @@ export default function ChurchScheduleApp() {
 
   const handleGenerateSchedule = () => {
     const speakers = (members || []).filter(m => m.isSpeaker);
-    if (speakers.length === 0) return alert("No speakers enabled in Directory.");
-    setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
-    setView('calendar'); 
+    if (speakers.length === 0) return alert("No speakers found. Enable members for the generator in the Directory.");
+    
+    const beforeCount = Object.keys(schedule).length;
+    const newSchedule = generateScheduleLogic(selectedMonth, members, serviceSettings, schedule);
+    const afterCount = Object.keys(newSchedule).length;
+    
+    if (beforeCount === afterCount) {
+      alert("No new assignments added. Check your speaker availability settings.");
+    } else {
+      setSchedule(newSchedule);
+      setView('calendar'); 
+      alert(`Success! Generated ${afterCount - beforeCount} assignments.`);
+    }
   };
 
-  const handleImportCSV = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const updatedSchedule = await importFromCSV(file, members, schedule);
-      setSchedule(updatedSchedule);
+  const handleClearMonth = async () => {
+    if (!window.confirm("Clear all assignments for this month?")) return;
+    const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
+    const newSchedule = { ...schedule };
+    Object.keys(newSchedule).forEach(key => {
+      const parts = key.split('-');
+      if (parts.length >= 3 && parseInt(parts[0]) === year && (parseInt(parts[1]) - 1) === month) {
+        delete newSchedule[key];
+      }
+    });
+
+    try {
+      setDataLoading(true);
+      await db.current.collection('organizations').doc(orgId).update({ schedule: newSchedule });
+      setSchedule(newSchedule);
       setShowActions(false);
-    }
+      alert("Month cleared.");
+    } catch (err) { alert("Failed to clear database."); }
+    finally { setDataLoading(false); }
   };
 
   const cancelInvite = async (id) => { await db.current.collection('invitations').doc(id).delete(); fetchOrgData(orgId); };
@@ -210,7 +193,7 @@ export default function ChurchScheduleApp() {
   const generateInviteLink = async (email, role) => {
     const code = Math.random().toString(36).substring(2, 10);
     await db.current.collection('invitations').doc(code).set({ orgId, email, role, churchName, status: 'pending', expiresAt: new Date(Date.now() + 604800000).toISOString() });
-    alert("Invite code generated: " + code);
+    alert("Invite generated: " + code);
     fetchOrgData(orgId);
   };
 
@@ -257,10 +240,11 @@ export default function ChurchScheduleApp() {
         .nav-tab { padding: 16px 24px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; font-size: 15px; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
         .input-field { width: 100%; padding: 14px; border: 2px solid #e5e0d8; border-radius: 10px; font-size: 15px; outline: none; }
-        .calendar-bar { padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; margin: 2px 0; cursor: pointer; display: block; width: 100%; text-align: left; border: none; }
+        .calendar-bar { padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; margin: 2px 0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; border: none; }
         .bar-empty { background: #f9fafb; color: #cbd5e1; border: 1px dashed #e2e8f0 !important; }
+        .avatar-circle { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
         .actions-dropdown { position: absolute; top: 110%; right: 0; background: white; border: 1px solid #eee; borderRadius: 12px; width: 220px; z-index: 1000; boxShadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; }
-        .dropdown-item { width: 100%; padding: 10px 16px; text-align: left; border: none; background: none; cursor: pointer; font-size: 14px; border-radius: 8px; color: #1e3a5f; font-weight: 500; }
+        .dropdown-item { width: 100%; padding: 10px 16px; text-align: left; border: none; background: none; cursor: pointer; font-size: 14px; border-radius: 8px; color: #1e3a5f; font-weight: 500; display: flex; align-items: center; gap: 10px; }
         .dropdown-item:hover { background: #f3f4f6; }
       `}</style>
 
@@ -270,18 +254,20 @@ export default function ChurchScheduleApp() {
             <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
             <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
-          <div style={{ position: 'relative' }} ref={dropdownRef}>
-            <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-              <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} style={{ width: '32px', height: '32px', borderRadius: '50%' }} alt="Me" />
-              <span>Account ▼</span>
-            </button>
-            {showProfileMenu && (
-              <div className="actions-dropdown">
-                <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">My Profile</button>
-                {['owner', 'admin'].includes(userRole) && <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
-                <button onClick={() => auth.current.signOut()} className="dropdown-item" style={{ color: '#dc2626', borderTop: '1px solid #f3f4f6' }}>Sign Out</button>
-              </div>
-            )}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ position: 'relative' }} ref={dropdownRef}>
+              <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
+                <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} className="avatar-circle" alt="Me" />
+                <span style={{ fontWeight: '800' }}>Account ▼</span>
+              </button>
+              {showProfileMenu && (
+                <div className="actions-dropdown">
+                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">👤 My Profile</button>
+                  {['owner', 'admin'].includes(userRole) && <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
+                  <button onClick={() => auth.current.signOut()} className="dropdown-item" style={{ color: '#dc2626', borderTop: '1px solid #f3f4f6' }}>🚪 Sign Out</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
