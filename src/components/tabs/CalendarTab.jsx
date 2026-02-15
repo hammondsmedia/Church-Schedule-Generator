@@ -31,6 +31,9 @@ export default function CalendarTab({
   const days = getMonthDays(selectedMonth);
 
   const getTimeLabel = (type) => {
+    // Special case for Communion label
+    if (type === 'communion') return 'Communion — ';
+    
     const setting = serviceSettings[type];
     return setting && setting.enabled && setting.time ? `${setting.time} — ` : '';
   };
@@ -66,6 +69,7 @@ export default function CalendarTab({
                 </button>
               )}
 
+              {/* PINK SLOT: COMMUNION */}
               {serviceSettings.communion.enabled && (
                 <button 
                   className={'calendar-bar ' + (c ? '' : 'bar-empty')} 
