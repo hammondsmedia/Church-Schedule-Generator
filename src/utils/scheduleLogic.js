@@ -11,11 +11,8 @@ export const getMonthDays = (date) => {
 };
 
 export const isSpeakerAvailable = (member, date, type) => {
-  // Safety: Default to false if flags are missing
-  if (!member.isSpeaker) return false;
-  if (!member.availability || member.availability[type] === undefined) return false;
-  if (!member.availability[type]) return false;
-
+  // Strict Logic: Member must be enabled and have specific availability checked
+  if (!member.isSpeaker || !member.availability?.[type]) return false;
   const ds = date.toISOString().split('T')[0];
   for (const b of (member.blockOffDates || [])) if (ds >= b.start && ds <= b.end) return false;
   return true;
@@ -51,12 +48,14 @@ export const generateScheduleLogic = (selectedMonth, members, serviceSettings, e
       sc++;
       if (serviceSettings.sundayMorning.enabled) slots.sundayMorning.push({ dk, date, week: sc });
       if (serviceSettings.sundayEvening.enabled) slots.sundayEvening.push({ dk, date, week: sc });
-      if (serviceSettings.communion.enabled && serviceSettings.sundayMorning.enabled) slots.communion.push({ dk, date, week: sc });
+      // Communion only if enabled
+      if (serviceSettings.communion.enabled) slots.communion.push({ dk, date, week: sc });
     }
     if (dw === 3 && serviceSettings.wednesdayEvening.enabled) slots.wednesdayEvening.push({ dk, date, week: Math.ceil(date.getDate() / 7) });
   });
 
   const getAvailable = (d, type, exId = null) => {
+    // STRICT EXCLUSION: If exId is passed, filter that person out of the available pool
     let av = members.filter(m => isSpeakerAvailable(m, d, type) && m.id !== exId);
     const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
     const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
@@ -81,10 +80,12 @@ export const generateScheduleLogic = (selectedMonth, members, serviceSettings, e
 
   ['sundayMorning', 'sundayEvening', 'wednesdayEvening'].forEach(t => applyRepeat(t, slots[t]));
   
-  const fill = (t, list, ex) => list.forEach(sl => {
+  const fill = (t, list, exType = null) => list.forEach(sl => {
     const sk = sl.dk + '-' + t;
     if (!newSchedule[sk]) {
-      const sel = getAvailable(sl.date, t, ex ? newSchedule[sl.dk + '-' + ex]?.speakerId : null)[0];
+      // Find person who is morning speaker to EXCLUDE them from communion
+      const exId = exType ? newSchedule[sl.dk + '-' + exType]?.speakerId : null;
+      const sel = getAvailable(sl.date, t, exId)[0];
       if (sel) { 
         newSchedule[sk] = { speakerId: sel.id, date: sl.dk, serviceType: t }; 
         counts[sel.id][t]++; 
@@ -93,6 +94,7 @@ export const generateScheduleLogic = (selectedMonth, members, serviceSettings, e
   });
 
   fill('sundayMorning', slots.sundayMorning); 
+  // STRICT: Use sundayMorning results to exclude speakers from communion
   fill('communion', slots.communion, 'sundayMorning'); 
   fill('sundayEvening', slots.sundayEvening); 
   fill('wednesdayEvening', slots.wednesdayEvening);
