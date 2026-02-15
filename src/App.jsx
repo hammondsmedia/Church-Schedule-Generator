@@ -75,18 +75,6 @@ export default function ChurchScheduleApp() {
         db.current = window.firebase.firestore();
         storage.current = window.firebase.storage();
 
-        const inviteCode = new URLSearchParams(window.location.search).get('invite');
-        if (inviteCode) {
-          const doc = await db.current.collection('invitations').doc(inviteCode).get();
-          if (doc.exists) {
-            const d = doc.data();
-            setInvitationData(d);
-            setChurchName(d.churchName);
-            setChurchNameLocked(true);
-            setAuthView('register');
-          }
-        }
-
         auth.current.onAuthStateChanged((u) => {
           setUser(u); setAuthLoading(false);
           if (u) loadUserData(u.uid);
@@ -148,12 +136,6 @@ export default function ChurchScheduleApp() {
     }
   }, [members, families, schedule, serviceSettings, churchName]);
 
-  // --- HANDLERS ---
-  const handleGenerateSchedule = () => {
-    setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
-    setView('calendar'); 
-  };
-
   const handleUpdateSelf = async (updatedData) => {
     try {
       await db.current.collection('users').doc(user.uid).update(updatedData);
@@ -162,30 +144,22 @@ export default function ChurchScheduleApp() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm("CRITICAL: This will permanently delete your account and remove you from the directory. This cannot be undone. Proceed?")) return;
-    
+    if (!window.confirm("CRITICAL: Permanently delete account? This will remove you from the directory and cannot be undone.")) return;
     try {
-      // 1. Remove from organization members list
-      const updatedMembers = members.filter(m => m.id !== user.uid);
+      const updatedMembers = (members || []).filter(m => m.id !== user.uid);
       await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
-      
-      // 2. Delete user document
       await db.current.collection('users').doc(user.uid).delete();
-      
-      // 3. Delete Auth record
       await auth.current.currentUser.delete();
-      
       window.location.reload();
-    } catch (err) {
-      alert("For security, please sign out and sign back in before deleting your account.");
-    }
+    } catch (err) { alert("Security timeout. Please sign out and sign back in before deleting account."); }
   };
 
+  // --- FIXED AUTH HANDLERS ---
   const handleLogin = (e) => { 
     e.preventDefault(); 
     setAuthError('');
-    auth.current.signInWithEmailAndPassword(authEmail, authPassword)
-      .catch(err => setAuthError(err.message)); 
+    if (!authEmail || !authPassword) return setAuthError("Please enter email and password.");
+    auth.current.signInWithEmailAndPassword(authEmail, authPassword).catch(err => setAuthError(err.message)); 
   };
   
   const handleRegister = async (e) => {
@@ -197,7 +171,6 @@ export default function ChurchScheduleApp() {
       const targetOrgId = invitationData?.orgId || ('org_' + Math.random().toString(36).substring(2, 12));
       const firstName = authName.split(' ')[0] || '';
       const lastName = authName.split(' ').slice(1).join(' ') || '';
-      
       const newMember = { id: r.user.uid, firstName, lastName, email: authEmail, isSpeaker: false, serviceSkills: [], leadershipRole: "", familyId: "", availability: {}, blockOffDates: [], repeatRules: [] };
 
       if (!invitationData) {
@@ -225,13 +198,16 @@ export default function ChurchScheduleApp() {
       <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <img src={logoIcon} alt="Logo" style={{ height: '60px', marginBottom: '16px' }} />
         <h2 style={{ textAlign: 'center', color: '#1e3a5f', marginBottom: '24px' }}>Church Collab App</h2>
+        
+        {/* FORM FIX: Linked value and onChange handlers */}
         <form onSubmit={authView === 'login' ? handleLogin : handleRegister} style={{ width: '100%' }}>
           {authView === 'register' && <input className="auth-in" placeholder="Full Name" value={authName} onChange={e => setAuthName(e.target.value)} required />}
           <input className="auth-in" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="auth-in" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
           <button className="btn-primary" style={{width: '100%', padding: '12px', fontWeight: 'bold'}} type="submit">{authView === 'login' ? 'Login' : 'Sign Up'}</button>
-          {authError && <p style={{color: 'red', fontSize: '11px', marginTop: '10px'}}>{authError}</p>}
+          {authError && <p style={{color: 'red', fontSize: '11px', marginTop: '10px', textAlign: 'center'}}>{authError}</p>}
         </form>
+        
         <button onClick={() => setAuthView(authView === 'login' ? 'register' : 'login')} style={{ border: 'none', background: 'none', marginTop: '12px', color: '#1e3a5f', cursor: 'pointer' }}>
           {authView === 'login' ? "Need an account? Sign Up" : "Back to Login"}
         </button>
@@ -258,8 +234,7 @@ export default function ChurchScheduleApp() {
             <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
             <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{padding: '8px 16px'}} onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <div style={{ position: 'relative' }} ref={dropdownRef}>
               <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
                 <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-header" alt="Me" />
@@ -267,7 +242,7 @@ export default function ChurchScheduleApp() {
               </button>
               {showProfileMenu && (
                 <div style={{ position: 'absolute', top: '110%', right: 0, background: 'white', border: '1px solid #eee', borderRadius: '12px', width: '180px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>My Profile</button>
+                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer' }}>My Profile</button>
                   <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', borderTop: '1px solid #eee' }}>Sign Out</button>
                 </div>
               )}
