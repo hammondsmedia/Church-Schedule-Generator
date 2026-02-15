@@ -18,70 +18,39 @@ export default function AccountPage({ user, memberData, onUpdate, onBack, storag
       const ref = storage.ref(`profile_pics/${user.uid}`);
       await ref.put(file);
       const url = await ref.getDownloadURL();
-      setForm({ ...form, photoURL: url });
-      await onUpdate({ ...form, photoURL: url });
-    } catch (err) { alert("Error uploading image"); }
+      const updatedForm = { ...form, photoURL: url };
+      setForm(updatedForm);
+      await onUpdate(updatedForm);
+    } catch (err) { alert("Photo upload failed."); }
     setUploading(false);
   };
 
   const handleSave = async () => {
     await onUpdate(form);
-    alert("Personal profile updated and synced with Directory!");
+    alert("Profile saved!");
   };
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-      <button className="btn-secondary" onClick={onBack} style={{ marginBottom: '24px' }}>
-        ← Back to Directory
-      </button>
-      
-      <div className="card" style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '40px', padding: '48px' }}>
-        
-        {/* LEFT SIDE: PHOTO SECTION */}
+      <button className="btn-secondary" onClick={onBack} style={{ marginBottom: '24px' }}>← Back to Dashboard</button>
+      <div className="card" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '40px', padding: '40px' }}>
         <div style={{ textAlign: 'center', borderRight: '1px solid #eee', paddingRight: '40px' }}>
           <div style={{ position: 'relative', display: 'inline-block' }}>
-            <img 
-              src={form.photoURL || `https://ui-avatars.com/api/?name=${form.firstName}+${form.lastName}&size=200&background=1e3a5f&color=fff`} 
-              style={{ width: '180px', height: '180px', borderRadius: '50%', objectFit: 'cover', border: '5px solid #f3f4f6', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} 
-              alt="Profile"
-            />
-            <label htmlFor="photo-up" style={{ position: 'absolute', bottom: '10px', right: '10px', background: '#1e3a5f', color: 'white', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '3px solid #fff' }}>
-              📷
-            </label>
+            <img src={form.photoURL || `https://ui-avatars.com/api/?name=${form.firstName}+${form.lastName}&size=200`} style={{ width: '180px', height: '180px', borderRadius: '50%', objectFit: 'cover', border: '5px solid #f3f4f6' }} alt="Profile" />
+            <label htmlFor="photo-up" style={{ position: 'absolute', bottom: '10px', right: '10px', background: '#1e3a5f', color: 'white', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px solid #fff' }}>📷</label>
           </div>
           <input type="file" id="photo-up" style={{ display: 'none' }} onChange={handlePhotoUpload} accept="image/*" />
-          <h3 style={{ margin: '20px 0 5px 0', color: '#1e3a5f' }}>{form.firstName} {form.lastName}</h3>
+          <h3 style={{ margin: '15px 0 5px 0' }}>{form.firstName} {form.lastName}</h3>
           <p style={{ color: '#666', fontSize: '14px' }}>{user.email}</p>
-          {uploading && <p style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold' }}>Uploading photo...</p>}
         </div>
-
-        {/* RIGHT SIDE: BASIC INFO FORM */}
         <div>
-          <h2 style={{ marginTop: 0, marginBottom: '8px', fontSize: '22px' }}>Basic Information</h2>
-          <p style={{ color: '#666', marginBottom: '32px', fontSize: '14px' }}>Update your personal details. These changes will be visible to others in the Directory.</p>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            <div style={{ gridColumn: 'span 1' }}>
-              <label style={{ fontSize: '11px', fontWeight: '800', color: '#999', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>First Name</label>
-              <input className="input-field" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} placeholder="e.g. Jacob" />
-            </div>
-            <div style={{ gridColumn: 'span 1' }}>
-              <label style={{ fontSize: '11px', fontWeight: '800', color: '#999', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Last Name</label>
-              <input className="input-field" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} placeholder="e.g. McKinney" />
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ fontSize: '11px', fontWeight: '800', color: '#999', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Phone Number</label>
-              <input className="input-field" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="555-555-5555" />
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ fontSize: '11px', fontWeight: '800', color: '#999', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Email (Sign-in Email)</label>
-              <input className="input-field" value={user.email} disabled style={{ background: '#f9fafb', cursor: 'not-allowed' }} />
-            </div>
+          <h2 style={{ marginTop: 0, marginBottom: '24px' }}>Basic Information</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div><label style={{ fontSize: '11px', fontWeight: '800', color: '#999' }}>FIRST NAME</label><input className="input-field" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} /></div>
+            <div><label style={{ fontSize: '11px', fontWeight: '800', color: '#999' }}>LAST NAME</label><input className="input-field" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} /></div>
+            <div style={{ gridColumn: 'span 2' }}><label style={{ fontSize: '11px', fontWeight: '800', color: '#999' }}>PHONE</label><input className="input-field" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} /></div>
           </div>
-
-          <div style={{ marginTop: '40px', paddingTop: '24px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="btn-primary" onClick={handleSave} style={{ minWidth: '150px' }}>Save Changes</button>
-          </div>
+          <button className="btn-primary" style={{ marginTop: '30px', width: '100%' }} onClick={handleSave}>Save Profile</button>
         </div>
       </div>
     </div>
