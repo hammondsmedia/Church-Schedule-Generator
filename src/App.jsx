@@ -12,9 +12,9 @@ import DirectoryTab from './components/tabs/DirectoryTab';
 import CalendarTab from './components/tabs/CalendarTab';
 import ServicesTab from './components/tabs/ServicesTab';
 import AccountPage from './components/pages/AccountPage';
+import SettingsPage from './components/pages/SettingsPage'; // NEW PAGE
 
 // Modal Components
-import SettingsModal from './components/modals/SettingsModal';
 import MemberProfileModal from './components/modals/MemberProfileModal';
 import NoteModal from './components/modals/NoteModal';
 
@@ -29,18 +29,20 @@ export default function ChurchScheduleApp() {
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
   const [churchName, setChurchName] = useState('');
+  
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [members, setMembers] = useState([]); 
   const [families, setFamilies] = useState([]); 
+  const [pendingInvites, setPendingInvites] = useState([]); 
+  
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [view, setView] = useState('directory');
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('dashboard'); // dashboard | account | settings
   const [dataLoading, setDataLoading] = useState(false);
 
   // --- UI TOGGLES ---
-  const [showSettings, setShowSettings] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [assigningSlot, setAssigningSlot] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
@@ -102,6 +104,7 @@ export default function ChurchScheduleApp() {
         setOrgId(userData.orgId);
         setUserRole(userData.role);
         if (userData.orgId) {
+          fetchOrgData(userData.orgId);
           const orgDoc = await db.current.collection('organizations').doc(userData.orgId).get();
           if (orgDoc.exists) {
             const d = orgDoc.data();
@@ -117,7 +120,23 @@ export default function ChurchScheduleApp() {
     setDataLoading(false);
   };
 
-  // --- HANDLERS ---
+  const fetchOrgData = async (targetOrgId) => {
+    const inviteSnapshot = await db.current.collection('invitations').where('orgId', '==', targetOrgId).where('status', '==', 'pending').get();
+    setPendingInvites(inviteSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  };
+
+  useEffect(() => {
+    if (user && firebaseReady && !dataLoading && orgId && ['owner', 'admin'].includes(userRole)) {
+      const t = setTimeout(() => {
+        db.current.collection('organizations').doc(orgId).set({ 
+          members, families, schedule, serviceSettings, churchName, updatedAt: new Date().toISOString() 
+        }, { merge: true });
+      }, 1000);
+      return () => clearTimeout(t);
+    }
+  }, [members, families, schedule, serviceSettings, churchName]);
+
+  // --- RESTORED HANDLERS ---
   const handleUpdateSelf = async (updatedData) => {
     try {
       const updatedMembers = members.map(m => m.id === user.uid ? { ...m, ...updatedData } : m);
@@ -128,14 +147,50 @@ export default function ChurchScheduleApp() {
     } catch (err) { alert("Save failed."); }
   };
 
+  const handleGenerateSchedule = () => {
+    //
+    const speakers = members.filter(m => m.isSpeaker);
+    if (speakers.length === 0) return alert("No speakers enabled in Directory. Edit a person to enable 'Schedule Generator'.");
+    
+    const newSchedule = generateScheduleLogic(selectedMonth, members, serviceSettings, schedule);
+    setSchedule(newSchedule);
+    setView('calendar'); 
+  };
+
+  const cancelInvite = async (id) => {
+    await db.current.collection('invitations').doc(id).delete();
+    fetchOrgData(orgId);
+  };
+
+  const updateMemberRole = async (memberId, role) => {
+    await db.current.collection('users').doc(memberId).update({ role });
+    // In a real app, this would trigger a re-load, but here we just update the local view if possible
+    alert("Role updated. The user will see changes on their next login.");
+  };
+
+  const removeMember = async (id, name) => {
+    if (!window.confirm(`Remove ${name} from organization?`)) return;
+    const updated = members.filter(m => m.id !== id);
+    setMembers(updated);
+    await db.current.collection('users').doc(id).update({ orgId: null, role: 'viewer' });
+  };
+
+  const generateInviteLink = async (email, role) => {
+    const inviteCode = Math.random().toString(36).substring(2, 10);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await db.current.collection('invitations').doc(inviteCode).set({ 
+        orgId, email, role, churchName, status: 'pending', expiresAt: expiresAt.toISOString() 
+    });
+    const link = `${window.location.origin}?invite=${inviteCode}`;
+    await sendInviteEmail({ to_email: email, church_name: churchName, invite_link: link, role });
+    fetchOrgData(orgId);
+    alert("Invite sent!");
+  };
+
   const handleSaveNote = (slotKey, noteText) => {
     setSchedule(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], note: noteText } }));
     setEditingNote(null);
-  };
-
-  const handleGenerateSchedule = () => {
-    setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
-    setView('calendar'); 
   };
 
   const handleImportCSV = async (e) => {
@@ -213,14 +268,16 @@ export default function ChurchScheduleApp() {
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <div style={{ position: 'relative' }} ref={dropdownRef}>
-              <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-                <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} className="avatar-circle" alt="Me" />
-                <span style={{ fontWeight: '700' }}>Account ▼</span>
+              <button className="btn-secondary" style={{ padding: '4px 12px', borderRadius: '8px', border: '2px solid #e5e7eb' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} className="avatar-circle" alt="Me" />
+                  <span style={{ fontWeight: '800', color: '#1e3a5f' }}>Account ▼</span>
+                </div>
               </button>
               {showProfileMenu && (
                 <div className="actions-dropdown">
                   <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">My Profile</button>
-                  {['owner', 'admin'].includes(userRole) && <button onClick={() => { setShowSettings(true); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
+                  {['owner', 'admin'].includes(userRole) && <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
                   <button onClick={() => auth.current.signOut()} className="dropdown-item" style={{ color: '#dc2626', borderTop: '1px solid #f3f4f6' }}>Sign Out</button>
                 </div>
               )}
@@ -232,6 +289,15 @@ export default function ChurchScheduleApp() {
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 24px' }}>
         {currentPage === 'account' ? (
           <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
+        ) : currentPage === 'settings' ? (
+          <SettingsPage 
+            onBack={() => setCurrentPage('dashboard')} 
+            serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} 
+            userRole={userRole} user={user} members={members} 
+            pendingInvites={pendingInvites} cancelInvite={cancelInvite} 
+            generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} 
+            removeMember={removeMember}
+          />
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -240,18 +306,18 @@ export default function ChurchScheduleApp() {
                 <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>⚡ Actions ▼</button>
                 {showActions && (
                   <div className="actions-dropdown">
-                    <button className="dropdown-item" onClick={() => exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName)}>📄 Export PDF</button>
-                    <button className="dropdown-item" onClick={() => exportToCSV(selectedMonth, schedule, members, serviceSettings, getSpeakerName)}>📊 Export CSV</button>
+                    <button className="dropdown-item" onClick={() => { exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName); setShowActions(false); }}>📄 Export PDF</button>
+                    <button className="dropdown-item" onClick={() => { exportToCSV(selectedMonth, schedule, members, serviceSettings, getSpeakerName); setShowActions(false); }}>📊 Export CSV</button>
                     {['owner', 'admin'].includes(userRole) && (
                       <>
-                        <button className="dropdown-item" onClick={() => fileInputRef.current.click()}>📥 Import CSV</button>
+                        <button className="dropdown-item" onClick={() => { fileInputRef.current.click(); setShowActions(false); }}>📥 Import CSV</button>
                         <input type="file" ref={fileInputRef} onChange={handleImportCSV} style={{ display: 'none' }} />
                         <button className="dropdown-item" style={{ color: 'red' }} onClick={handleClearMonth}>🗑️ Clear Month</button>
                       </>
                     )}
                   </div>
                 )}
-                {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={handleGenerateSchedule}>✨ Generate</button>}
+                {['owner', 'admin'].includes(userRole) && <button className="btn-primary" style={{ padding: '10px 24px', fontWeight: '800' }} onClick={handleGenerateSchedule}>✨ Generate</button>}
               </div>
             </div>
 
@@ -275,7 +341,6 @@ export default function ChurchScheduleApp() {
       </main>
 
       <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} />
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} />
       <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} userRole={userRole} setAssigningSlot={setAssigningSlot} />
 
       {assigningSlot && (
