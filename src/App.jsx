@@ -7,11 +7,13 @@ import { generateScheduleLogic, getMonthDays } from './utils/scheduleLogic';
 import { sendInviteEmail } from './services/email';
 import { exportToCSV, importFromCSV, exportToPDF } from './utils/exportUtils';
 
-// Page & Tab Components
+// Tab Components
 import DirectoryTab from './components/tabs/DirectoryTab';
 import CalendarTab from './components/tabs/CalendarTab';
 import ServicesTab from './components/tabs/ServicesTab';
-import AccountPage from './components/pages/AccountPage'; // NEW PAGE
+
+// NEW: Page Component
+import AccountPage from './components/pages/AccountPage';
 
 // Modal Components
 import SettingsModal from './components/modals/SettingsModal';
@@ -39,12 +41,11 @@ export default function ChurchScheduleApp() {
   const [pendingInvites, setPendingInvites] = useState([]); 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
-  const [invitationData, setInvitationData] = useState(null); 
 
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [view, setView] = useState('directory');
-  const [currentPage, setCurrentPage] = useState('dashboard'); // Dashboard or Account
+  const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard' or 'account'
   
   const [showSettings, setShowSettings] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
@@ -62,8 +63,7 @@ export default function ChurchScheduleApp() {
 
   const db = useRef(null);
   const auth = useRef(null);
-  const storage = useRef(null); // For profile pictures
-  const fileInputRef = useRef(null);
+  const storage = useRef(null);
   const dropdownRef = useRef(null);
 
   // --- INITIALIZATION ---
@@ -84,6 +84,15 @@ export default function ChurchScheduleApp() {
       } catch (err) { setAuthLoading(false); }
     };
     init();
+
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowActions(false);
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const loadUserData = async (uid) => {
@@ -128,19 +137,12 @@ export default function ChurchScheduleApp() {
     }
   }, [members, families, schedule, serviceSettings, churchName]);
 
-  // --- HANDLERS ---
-  const handleGenerateSchedule = () => {
-    setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
-    setView('calendar'); 
-  };
-
   const handleUpdateSelf = async (updatedData) => {
-    // 1. Update personal user doc
-    await db.current.collection('users').doc(user.uid).update(updatedData);
-    
-    // 2. Sync with Directory members array
-    const updatedMembers = members.map(m => m.id === user.uid ? { ...m, ...updatedData } : m);
-    setMembers(updatedMembers);
+    try {
+      await db.current.collection('users').doc(user.uid).update(updatedData);
+      const updatedMembers = members.map(m => m.id === user.uid ? { ...m, ...updatedData } : m);
+      setMembers(updatedMembers);
+    } catch (err) { alert("Failed to update directory entry."); }
   };
 
   const handleLogout = () => auth.current.signOut().then(() => window.location.reload());
@@ -150,7 +152,7 @@ export default function ChurchScheduleApp() {
 
   if (!user) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-        {/* Auth form logic remains same as previous */}
+      {/* Auth UI omitted for length - remains as previously defined */}
     </div>
   );
 
@@ -164,27 +166,26 @@ export default function ChurchScheduleApp() {
         .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px; }
         .nav-tab { padding: 12px 20px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
         .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
-        .input-field { width: 100%; padding: 12px; border: 2px solid #e5e0d8; border-radius: 8px; font-size: 14px; }
-        .avatar-circle { width: 45px; height: 45px; border-radius: 50%; background: #eee; object-fit: cover; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .avatar-header { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; border: 1px solid #ddd; }
       `}</style>
 
       <header style={{ background: '#f3f4f6', padding: '16px 0', borderBottom: '1px solid #e5e7eb' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer' }} onClick={() => setCurrentPage('dashboard')}>
-            <img src={logoIcon} alt="Logo" style={{ height: '40px' }} />
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
+            <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
+            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
-            <div style={{ position: 'relative' }}>
-              <button className="btn-secondary" style={{ padding: '5px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-                <img src={members.find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-circle" alt="Me" />
-                <span style={{ marginLeft: '5px' }}>Account ▼</span>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            {['owner', 'admin'].includes(userRole) && <button className="btn-secondary" style={{padding: '8px 16px'}} onClick={() => setShowSettings(true)}>⚙️ Settings</button>}
+            <div style={{ position: 'relative' }} ref={dropdownRef}>
+              <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
+                <img src={members.find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} className="avatar-header" alt="Me" />
+                <span>Account ▼</span>
               </button>
               {showProfileMenu && (
-                <div style={{ position: 'absolute', top: '100%', right: 0, background: 'white', border: '1px solid #eee', borderRadius: '8px', width: '180px', zIndex: 1000, marginTop: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
-                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer' }}>My Profile</button>
-                  <button onClick={handleLogout} style={{ width: '100%', padding: '12px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626' }}>Sign Out</button>
+                <div style={{ position: 'absolute', top: '110%', right: 0, background: 'white', border: '1px solid #eee', borderRadius: '12px', width: '180px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>My Profile</button>
+                  <button onClick={handleLogout} style={{ width: '100%', padding: '12px 20px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '14px', borderTop: '1px solid #eee' }}>Sign Out</button>
                 </div>
               )}
             </div>
@@ -203,7 +204,7 @@ export default function ChurchScheduleApp() {
           />
         ) : (
           <>
-            <h2 style={{ color: '#1e3a5f', marginBottom: '20px', fontWeight: '700', borderLeft: '4px solid #FF8C37', paddingLeft: '16px' }}>{churchName}</h2>
+            <h2 style={{ color: '#1e3a5f', marginBottom: '24px', fontWeight: '700', paddingLeft: '16px', borderLeft: '4px solid #FF8C37' }}>{churchName}</h2>
             <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #ddd', marginBottom: '24px' }}>
               <button className={'nav-tab ' + (view === 'directory' ? 'active' : '')} onClick={() => setView('directory')}>👥 Directory</button>
               <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Calendar</button>
