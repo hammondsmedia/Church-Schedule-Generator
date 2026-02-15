@@ -1,3 +1,4 @@
+// src/components/modals/NoteModal.jsx
 import React from 'react';
 
 export default function NoteModal({
@@ -27,7 +28,7 @@ export default function NoteModal({
           {['owner', 'admin'].includes(userRole) && (
             <>
               <button className="btn-secondary" onClick={() => { setAssigningSlot({ slotKey: editingNote.slotKey, date: editingNote.date, serviceType: editingNote.serviceType }); onClose(); }}>Swap Speaker</button>
-              {/* INDIVIDUAL DELETE BUTTON */}
+              {/* RESTORED INDIVIDUAL DELETE BUTTON */}
               <button 
                 onClick={() => handleDeleteSlot(editingNote.slotKey)} 
                 style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
