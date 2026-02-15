@@ -3,16 +3,10 @@ import React, { useState } from 'react';
 
 export default function SettingsPage({ 
   onBack, serviceSettings, setServiceSettings, userRole, user, members, 
-  pendingInvites, cancelInvite, generateInviteLink, updateMemberRole, removeMember 
+  pendingInvites = [], cancelInvite, generateInviteLink, updateMemberRole, removeMember 
 }) {
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('viewer');
-
-  const handleInvite = () => {
-    if (!newEmail) return alert("Enter an email.");
-    generateInviteLink(newEmail, newRole);
-    setNewEmail('');
-  };
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', paddingBottom: '40px' }}>
@@ -44,8 +38,6 @@ export default function SettingsPage({
         {userRole === 'owner' && (
           <div className="card">
             <h2 style={{ color: '#1e3a5f', marginTop: 0, marginBottom: '12px', fontSize: '24px', fontWeight: '800' }}>Organization Management</h2>
-            <p style={{ color: '#666', marginBottom: '24px' }}>Invite members and manage permissions.</p>
-            
             <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', marginBottom: '32px', border: '1px solid #e2e8f0' }}>
               <strong style={{ display: 'block', marginBottom: '12px' }}>Invite Member</strong>
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -55,7 +47,7 @@ export default function SettingsPage({
                   <option value="standard">Standard</option>
                   <option value="admin">Admin</option>
                 </select>
-                <button className="btn-primary" onClick={handleInvite}>Send Invite</button>
+                <button className="btn-primary" onClick={() => generateInviteLink(newEmail, newRole)}>Send Invite</button>
               </div>
             </div>
 
