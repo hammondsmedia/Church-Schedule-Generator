@@ -12,7 +12,7 @@ import DirectoryTab from './components/tabs/DirectoryTab';
 import CalendarTab from './components/tabs/CalendarTab';
 import ServicesTab from './components/tabs/ServicesTab';
 import AccountPage from './components/pages/AccountPage';
-import SettingsPage from './components/pages/SettingsPage'; // NEW PAGE
+import SettingsPage from './components/pages/SettingsPage';
 
 // Modal Components
 import MemberProfileModal from './components/modals/MemberProfileModal';
@@ -29,17 +29,15 @@ export default function ChurchScheduleApp() {
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
   const [churchName, setChurchName] = useState('');
-  
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [members, setMembers] = useState([]); 
   const [families, setFamilies] = useState([]); 
   const [pendingInvites, setPendingInvites] = useState([]); 
-  
   const [schedule, setSchedule] = useState({});
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [view, setView] = useState('directory');
-  const [currentPage, setCurrentPage] = useState('dashboard'); // dashboard | account | settings
+  const [currentPage, setCurrentPage] = useState('dashboard');
   const [dataLoading, setDataLoading] = useState(false);
 
   // --- UI TOGGLES ---
@@ -148,9 +146,8 @@ export default function ChurchScheduleApp() {
   };
 
   const handleGenerateSchedule = () => {
-    //
     const speakers = members.filter(m => m.isSpeaker);
-    if (speakers.length === 0) return alert("No speakers enabled in Directory. Edit a person to enable 'Schedule Generator'.");
+    if (speakers.length === 0) return alert("No speakers found. Ensure members have 'Enable for Schedule Generator' checked in their profile.");
     
     const newSchedule = generateScheduleLogic(selectedMonth, members, serviceSettings, schedule);
     setSchedule(newSchedule);
@@ -164,12 +161,11 @@ export default function ChurchScheduleApp() {
 
   const updateMemberRole = async (memberId, role) => {
     await db.current.collection('users').doc(memberId).update({ role });
-    // In a real app, this would trigger a re-load, but here we just update the local view if possible
-    alert("Role updated. The user will see changes on their next login.");
+    alert("Role updated.");
   };
 
   const removeMember = async (id, name) => {
-    if (!window.confirm(`Remove ${name} from organization?`)) return;
+    if (!window.confirm(`Remove ${name}?`)) return;
     const updated = members.filter(m => m.id !== id);
     setMembers(updated);
     await db.current.collection('users').doc(id).update({ orgId: null, role: 'viewer' });
@@ -203,12 +199,12 @@ export default function ChurchScheduleApp() {
   };
 
   const handleClearMonth = () => {
-    if (!window.confirm("Clear all assignments for this month?")) return;
+    if (!window.confirm("Clear month?")) return;
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach(key => {
       const parts = key.split('-');
-      if (parts.length >= 3 && parseInt(parts[0]) === year && parseInt(parts[1]) - 1 === month) delete newSchedule[key];
+      if (parseInt(parts[0]) === year && parseInt(parts[1]) - 1 === month) delete newSchedule[key];
     });
     setSchedule(newSchedule);
     setShowActions(false);
@@ -230,7 +226,6 @@ export default function ChurchScheduleApp() {
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
         <img src={logoIcon} style={{ height: '60px', marginBottom: '16px' }} alt="Logo" />
-        <h2 style={{ color: '#1e3a5f', marginBottom: '24px', fontFamily: 'Outfit' }}>Church Collab App</h2>
         <form onSubmit={handleLogin} style={{ width: '100%', display: 'grid', gap: '12px' }}>
           <input className="input-field" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
           <input className="input-field" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
@@ -266,22 +261,18 @@ export default function ChurchScheduleApp() {
             <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
             <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
           </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <div style={{ position: 'relative' }} ref={dropdownRef}>
-              <button className="btn-secondary" style={{ padding: '4px 12px', borderRadius: '8px', border: '2px solid #e5e7eb' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} className="avatar-circle" alt="Me" />
-                  <span style={{ fontWeight: '800', color: '#1e3a5f' }}>Account ▼</span>
-                </div>
-              </button>
-              {showProfileMenu && (
-                <div className="actions-dropdown">
-                  <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">My Profile</button>
-                  {['owner', 'admin'].includes(userRole) && <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
-                  <button onClick={() => auth.current.signOut()} className="dropdown-item" style={{ color: '#dc2626', borderTop: '1px solid #f3f4f6' }}>Sign Out</button>
-                </div>
-              )}
-            </div>
+          <div style={{ position: 'relative' }} ref={dropdownRef}>
+            <button className="btn-secondary" style={{ padding: '4px 12px', border: '2px solid #e5e7eb' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
+                <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} className="avatar-circle" alt="Me" />
+                <span style={{ fontWeight: '800' }}>Account ▼</span>
+            </button>
+            {showProfileMenu && (
+              <div className="actions-dropdown">
+                <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">My Profile</button>
+                {['owner', 'admin'].includes(userRole) && <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
+                <button onClick={() => auth.current.signOut()} className="dropdown-item" style={{ color: '#dc2626', borderTop: '1px solid #f3f4f6' }}>Sign Out</button>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -301,7 +292,7 @@ export default function ChurchScheduleApp() {
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '28px', fontWeight: '800' }}>{churchName || 'Your Congregation'}</h2>
+              <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '28px', fontWeight: '800' }}>{churchName}</h2>
               <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
                 <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>⚡ Actions ▼</button>
                 {showActions && (
@@ -321,7 +312,7 @@ export default function ChurchScheduleApp() {
               </div>
             </div>
 
-            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #e5e7eb', marginBottom: '32px', overflowX: 'auto' }}>
+            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #e5e7eb', marginBottom: '32px' }}>
               <button className={'nav-tab ' + (view === 'directory' ? 'active' : '')} onClick={() => setView('directory')}>👥 Directory</button>
               <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Teaching Calendar</button>
               <button className={'nav-tab ' + (view === 'services' ? 'active' : '')} onClick={() => setView('services')}>🛠️ Service Plans</button>
