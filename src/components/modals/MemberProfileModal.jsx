@@ -184,6 +184,22 @@ export default function MemberProfileModal({
               </select>
             </div>
             <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Gender</label>
+              <select className="input-field" disabled={isReadOnly} value={editingMember.gender || ''} onChange={e => updateField('gender', e.target.value)}>
+                <option value="">— Not Set —</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Birthday</label>
+              <input className="input-field" type="date" disabled={isReadOnly} value={editingMember.birthday || ''} onChange={e => updateField('birthday', e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Wedding Anniversary</label>
+              <input className="input-field" type="date" disabled={isReadOnly} value={editingMember.anniversary || ''} onChange={e => updateField('anniversary', e.target.value)} />
+            </div>
+            <div>
               <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Phone</label>
               <input className="input-field" disabled={isReadOnly} value={editingMember.phone || ''} onChange={e => updateField('phone', e.target.value)} />
             </div>
@@ -192,8 +208,26 @@ export default function MemberProfileModal({
               <input className="input-field" type="email" disabled={isReadOnly} value={editingMember.email || ''} onChange={e => updateField('email', e.target.value)} />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Address</label>
-              <textarea className="input-field" disabled={isReadOnly} value={editingMember.address || ''} onChange={e => updateField('address', e.target.value)} rows={2} style={{ resize: 'vertical' }} placeholder="Street, City, State ZIP" />
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Address 1</label>
+              <input className="input-field" disabled={isReadOnly} value={editingMember.address1 || ''} onChange={e => updateField('address1', e.target.value)} placeholder="Street address" />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Address 2</label>
+              <input className="input-field" disabled={isReadOnly} value={editingMember.address2 || ''} onChange={e => updateField('address2', e.target.value)} placeholder="Apt, suite, unit, etc." />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>City</label>
+              <input className="input-field" disabled={isReadOnly} value={editingMember.city || ''} onChange={e => updateField('city', e.target.value)} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>State / Region</label>
+                <input className="input-field" disabled={isReadOnly} value={editingMember.state || ''} onChange={e => updateField('state', e.target.value)} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Zip Code</label>
+                <input className="input-field" disabled={isReadOnly} value={editingMember.zip || ''} onChange={e => updateField('zip', e.target.value)} />
+              </div>
             </div>
 
             {/* Privacy Controls — only shown to the profile owner or admins */}
