@@ -47,7 +47,12 @@ export default function ChurchScheduleApp() {
   const [assigningSlot, setAssigningSlot] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showActions, setShowActions] = useState(false); 
+  const [showActions, setShowActions] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [setupName, setSetupName] = useState('');
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState(null);
 
   const [serviceSettings, setServiceSettings] = useState({
     sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
@@ -222,6 +227,37 @@ export default function ChurchScheduleApp() {
     alert("Code generated: " + code);
   };
 
+  const handleCreateOrg = async (e) => {
+    e.preventDefault();
+    if (!setupName.trim()) return;
+    setSetupLoading(true);
+    try {
+      const newOrgId = 'org_' + Date.now();
+      const ownerName = (user.displayName || user.email || '').split('@')[0];
+      await db.current.collection('organizations').doc(newOrgId).set({
+        churchName: setupName.trim(),
+        members: [{ id: user.uid, name: ownerName, email: user.email || '', role: 'owner', isSpeaker: false }],
+        schedule: {},
+        serviceSettings: {
+          sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
+          sundayEvening: { enabled: true, label: 'Sunday Evening', time: '6:00 PM' },
+          wednesdayEvening: { enabled: true, label: 'Wednesday Evening', time: '7:30 PM' },
+          communion: { enabled: true, label: 'Communion', time: '' }
+        },
+        families: [],
+        servicePeople: [],
+      });
+      await db.current.collection('users').doc(user.uid).set({
+        role: 'owner',
+        orgId: newOrgId,
+        email: user.email || '',
+      });
+      setNeedsSetup(false);
+      loadUserData(user.uid);
+    } catch (err) { alert('Setup failed: ' + err.message); }
+    setSetupLoading(false);
+  };
+
   const handleSaveNote = (slotKey, noteText) => {
     setSchedule(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], note: noteText } }));
     setEditingNote(null);
@@ -246,6 +282,47 @@ export default function ChurchScheduleApp() {
       />
     );
   }
+
+  if (loadError) return (
+    <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '520px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <h2 style={{ color: '#dc2626', marginBottom: '8px', fontFamily: 'Outfit' }}>Could Not Load Account</h2>
+        <p style={{ color: '#666', marginBottom: '16px', fontFamily: 'Outfit', fontSize: '14px' }}>There was an error loading your account data. This is usually a Firestore permission issue.</p>
+        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '12px', marginBottom: '20px', textAlign: 'left', fontFamily: 'monospace', fontSize: '13px', color: '#991b1b', wordBreak: 'break-all' }}>
+          {loadError}
+        </div>
+        {debugInfo && (
+          <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '12px', marginBottom: '20px', textAlign: 'left', fontFamily: 'monospace', fontSize: '12px', color: '#0369a1' }}>
+            <div>uid: {debugInfo.uid}</div>
+            <div>docExists: {String(debugInfo.docExists)}</div>
+            <div>rawRole: "{debugInfo.rawRole}"</div>
+            <div>normalizedRole: "{debugInfo.normalizedRole}"</div>
+            <div>orgId: {debugInfo.orgId}</div>
+          </div>
+        )}
+        <button onClick={() => { setLoadError(null); loadUserData(user.uid); }} style={{ background: '#1e3a5f', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontFamily: 'Outfit', marginRight: '8px' }}>Retry</button>
+        <button onClick={() => auth.current.signOut()} style={{ background: 'none', border: '2px solid #e5e7eb', color: '#666', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontFamily: 'Outfit' }}>Sign Out</button>
+      </div>
+    </div>
+  );
+
+  if (needsSetup) return (
+    <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '440px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+        <img src={logoIcon} style={{ height: '60px', marginBottom: '16px' }} alt="Logo" />
+        <h2 style={{ color: '#1e3a5f', marginBottom: '8px', fontFamily: 'Outfit' }}>Welcome!</h2>
+        <p style={{ color: '#666', marginBottom: '24px', fontFamily: 'Outfit' }}>Your account isn't linked to a congregation yet. Enter your congregation name to get started.</p>
+        <form onSubmit={handleCreateOrg} style={{ display: 'grid', gap: '12px' }}>
+          <input placeholder="Congregation name (e.g. Grace Baptist Church)" value={setupName} onChange={e => setSetupName(e.target.value)} required style={{ fontFamily: 'Outfit', padding: '14px', border: '2px solid #e5e0d8', borderRadius: '10px', fontSize: '15px', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+          <button type="submit" disabled={setupLoading} style={{ background: '#1e3a5f', color: 'white', border: 'none', padding: '14px 24px', borderRadius: '8px', cursor: setupLoading ? 'not-allowed' : 'pointer', fontWeight: '600', fontSize: '15px', fontFamily: 'Outfit' }}>
+            {setupLoading ? 'Creating...' : '🏛️ Create My Congregation'}
+          </button>
+        </form>
+        <button onClick={() => auth.current.signOut()} style={{ marginTop: '16px', background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: '14px', fontFamily: 'Outfit' }}>Sign out</button>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8f6f3' }}>
@@ -287,6 +364,11 @@ export default function ChurchScheduleApp() {
         </div>
       </header>
 
+      {debugInfo && !['owner', 'admin'].includes(userRole) && (
+        <div style={{ background: '#fef9c3', borderBottom: '2px solid #fde047', padding: '10px 24px', fontFamily: 'monospace', fontSize: '13px', color: '#713f12' }}>
+          ⚠️ Debug: uid={debugInfo.uid} | docExists={String(debugInfo.docExists)} | rawRole="{debugInfo.rawRole}" | normalizedRole="{debugInfo.normalizedRole}" | orgId={debugInfo.orgId}
+        </div>
+      )}
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 24px' }}>
         {currentPage === 'account' ? (
           <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
