@@ -17,15 +17,13 @@ import SettingsPage from './components/pages/SettingsPage';
 // Modal Components
 import MemberProfileModal from './components/modals/MemberProfileModal';
 import NoteModal from './components/modals/NoteModal';
+import AuthFlow from './components/AuthFlow';
 
 export default function ChurchScheduleApp() {
   // --- STATE ---
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState('');
   const [churchName, setChurchName] = useState('');
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -42,6 +40,7 @@ export default function ChurchScheduleApp() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [dataLoading, setDataLoading] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   // --- UI TOGGLES ---
   const [editingMember, setEditingMember] = useState(null);
@@ -83,6 +82,7 @@ export default function ChurchScheduleApp() {
           setUser(u);
           setAuthLoading(false);
           if (u) loadUserData(u.uid);
+          else setNeedsSetup(false);
         });
         setFirebaseReady(true);
       } catch (err) { setAuthLoading(false); }
@@ -101,16 +101,13 @@ export default function ChurchScheduleApp() {
 
   const loadUserData = async (uid) => {
     setDataLoading(true);
-    setLoadError(null);
     try {
       const userDoc = await db.current.collection('users').doc(uid).get();
       if (userDoc.exists) {
         const userData = userDoc.data();
-        const rawRole = userData.role;
-        const normalizedRole = (rawRole || '').toLowerCase();
-        setDebugInfo({ uid, rawRole, normalizedRole, orgId: userData.orgId, docExists: true });
         setOrgId(userData.orgId);
-        setUserRole(normalizedRole);
+        setUserRole((userData.role || '').toLowerCase());
+        setNeedsSetup(false);
         if (userData.orgId) {
           fetchOrgData(userData.orgId);
           const orgDoc = await db.current.collection('organizations').doc(userData.orgId).get();
@@ -122,18 +119,13 @@ export default function ChurchScheduleApp() {
             setSchedule(d.schedule || {});
             setServiceSettings(d.serviceSettings || serviceSettings);
             setChurchName(d.churchName || '');
-          } else {
-            setDebugInfo(prev => ({ ...prev, orgDocExists: false }));
           }
         }
       } else {
-        setDebugInfo({ uid, docExists: false });
+        // Firebase Auth account exists but no user doc — guide through setup
         setNeedsSetup(true);
       }
-    } catch (err) {
-      console.error('Load Error:', err);
-      setLoadError(err.message || String(err));
-    }
+    } catch (err) { console.error('Load Error:', err); }
     setDataLoading(false);
   };
 
@@ -271,31 +263,25 @@ export default function ChurchScheduleApp() {
     setEditingNote(null);
   };
 
-  const handleLogin = (e) => { 
-    e.preventDefault(); 
-    auth.current.signInWithEmailAndPassword(authEmail, authPassword).catch(err => alert(err.message)); 
-  };
-
-  const getSpeakerName = (id) => { 
+  const getSpeakerName = (id) => {
     const s = (members || []).find(m => m.id === id); 
     return s ? `${s.firstName} ${s.lastName}` : ''; 
   };
 
-  if (authLoading) return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'Outfit' }}>Connecting...</div>;
+  if (authLoading || (user && dataLoading && needsSetup)) {
+    return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'Outfit' }}>Connecting…</div>;
+  }
 
-  if (!user) return (
-    <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
-        <img src={logoIcon} style={{ height: '60px', marginBottom: '16px' }} alt="Logo" />
-        <h2 style={{ color: '#1e3a5f', marginBottom: '24px' }}>Church Collab App</h2>
-        <form onSubmit={handleLogin} style={{ display: 'grid', gap: '12px' }}>
-          <input className="input-field" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
-          <input className="input-field" type="password" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required />
-          <button className="btn-primary" type="submit">Login</button>
-        </form>
-      </div>
-    </div>
-  );
+  if (!user || needsSetup) {
+    return (
+      <AuthFlow
+        auth={auth.current}
+        db={db.current}
+        existingUser={needsSetup ? user : null}
+        onSetupComplete={() => loadUserData(user.uid)}
+      />
+    );
+  }
 
   if (loadError) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
