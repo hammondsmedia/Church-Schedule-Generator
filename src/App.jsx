@@ -112,7 +112,7 @@ export default function ChurchScheduleApp() {
             setFamilies(d.families || []);
             setServicePeople(d.servicePeople || []);
             setSchedule(d.schedule || {});
-            setServiceSettings(d.serviceSettings || serviceSettings);
+            setServiceSettings({ ...serviceSettings, ...(d.serviceSettings || {}) });
             setChurchName(d.churchName || '');
           }
         }
@@ -146,8 +146,13 @@ export default function ChurchScheduleApp() {
   const handleGenerateSchedule = () => {
     const speakers = (members || []).filter(m => m.isSpeaker);
     if (speakers.length === 0) return alert("No speakers found. Ensure members have 'Enable for Schedule Generator' checked in Directory.");
-    setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
-    setView('calendar'); 
+    try {
+      setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
+      setView('calendar');
+    } catch (err) {
+      alert("Failed to generate schedule. Please check your service settings and try again.");
+      console.error(err);
+    }
   };
 
   const handleClearMonth = async () => {

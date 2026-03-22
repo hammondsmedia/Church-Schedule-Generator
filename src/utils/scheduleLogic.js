@@ -46,11 +46,11 @@ export const generateScheduleLogic = (selectedMonth, members, serviceSettings, e
     const dw = date.getDay(), dk = date.toISOString().split('T')[0];
     if (dw === 0) {
       sc++;
-      if (serviceSettings.sundayMorning.enabled) slots.sundayMorning.push({ dk, date, week: sc });
-      if (serviceSettings.sundayEvening.enabled) slots.sundayEvening.push({ dk, date, week: sc });
-      if (serviceSettings.communion.enabled) slots.communion.push({ dk, date, week: sc });
+      if (serviceSettings.sundayMorning?.enabled) slots.sundayMorning.push({ dk, date, week: sc });
+      if (serviceSettings.sundayEvening?.enabled) slots.sundayEvening.push({ dk, date, week: sc });
+      if (serviceSettings.communion?.enabled) slots.communion.push({ dk, date, week: sc });
     }
-    if (dw === 3 && serviceSettings.wednesdayEvening.enabled) slots.wednesdayEvening.push({ dk, date, week: Math.ceil(date.getDate() / 7) });
+    if (dw === 3 && serviceSettings.wednesdayEvening?.enabled) slots.wednesdayEvening.push({ dk, date, week: Math.ceil(date.getDate() / 7) });
   });
 
   const getAvailable = (d, type, exId = null) => {
