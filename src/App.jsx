@@ -230,7 +230,10 @@ export default function ChurchScheduleApp() {
   };
 
   const cancelInvite = async (id) => { await db.current.collection('invitations').doc(id).delete(); fetchOrgData(orgId); };
-  const updateMemberRole = async (uid, role) => { await db.current.collection('users').doc(uid).update({ role }); alert("Updated!"); };
+  const updateMemberRole = async (uid, role) => {
+    await db.current.collection('users').doc(uid).update({ role });
+    setMembers(prev => prev.map(m => m.id === uid ? { ...m, role } : m));
+  };
   const removeMember = async (id, name) => {
     if (!window.confirm(`Remove ${name}?`)) return;
     setMembers(members.filter(m => m.id !== id));
