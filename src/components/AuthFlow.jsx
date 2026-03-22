@@ -55,6 +55,9 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
 
   // Claim profile
   const [memberSearch, setMemberSearch] = useState('');
+  const [verifyingMember, setVerifyingMember] = useState(null);
+  const [verifyInput, setVerifyInput] = useState('');
+  const [verifyError, setVerifyError] = useState('');
 
   // Create church
   const [newChurchName, setNewChurchName] = useState('');
@@ -151,6 +154,24 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
         : m
     );
     finishSetup({ orgId: selectedOrg.id, role: 'standard', updatedMembers });
+  };
+
+  const handleRequestVerify = (member) => {
+    setVerifyingMember(member);
+    setVerifyInput('');
+    setVerifyError('');
+  };
+
+  const handleVerifyAndClaim = () => {
+    const val = verifyInput.trim().toLowerCase();
+    const emailMatch = verifyingMember.email && verifyingMember.email.toLowerCase() === val;
+    const phoneNorm = (str) => str.replace(/\D/g, '');
+    const phoneMatch = verifyingMember.phone && phoneNorm(verifyingMember.phone) === phoneNorm(verifyInput.trim()) && phoneNorm(verifyInput.trim()).length >= 7;
+    if (emailMatch || phoneMatch) {
+      handleClaimProfile(verifyingMember);
+    } else {
+      setVerifyError('That email or phone number does not match this profile. Please try again.');
+    }
   };
 
   const handleSkipClaim = () => {
@@ -295,6 +316,34 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
         </div>
       )}
 
+      {/* Verification overlay */}
+      {verifyingMember && (
+        <div style={{ background: '#f0f9ff', border: '2px solid #bae6fd', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+          <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: '14px', marginBottom: '4px' }}>
+            Verify your identity for {verifyingMember.firstName} {verifyingMember.lastName}
+          </div>
+          <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '10px' }}>
+            Enter the email address or phone number on this profile to confirm it's yours.
+          </div>
+          <input
+            style={{ ...inputStyle, marginBottom: '8px' }}
+            placeholder="Email or phone number on profile…"
+            value={verifyInput}
+            onChange={e => { setVerifyInput(e.target.value); setVerifyError(''); }}
+            autoFocus
+          />
+          {verifyError && <div style={{ color: '#b91c1c', fontSize: '13px', marginBottom: '8px' }}>{verifyError}</div>}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={handleVerifyAndClaim} disabled={loading || !verifyInput.trim()} style={{ ...btnPrimary, width: 'auto', padding: '9px 18px', fontSize: '14px' }}>
+              Confirm & Claim
+            </button>
+            <button onClick={() => setVerifyingMember(null)} style={{ ...btnSecondary, width: 'auto', padding: '9px 18px', fontSize: '14px', marginTop: 0 }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Search all members */}
       <input
         style={{ ...inputStyle, marginBottom: '10px' }}
@@ -306,7 +355,7 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
         {filteredMembers
           .filter(m => !emailMatches.find(em => em.id === m.id)) // don't double-show email matches
           .map(m => (
-            <MemberClaimCard key={m.id} member={m} onClaim={() => handleClaimProfile(m)} loading={loading} />
+            <MemberClaimCard key={m.id} member={m} onClaim={() => handleRequestVerify(m)} loading={loading} />
           ))}
         {filteredMembers.length === 0 && (
           <div style={{ color: '#6b7280', fontSize: '13px', padding: '8px 0' }}>No members match your search.</div>
