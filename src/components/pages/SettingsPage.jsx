@@ -1,9 +1,10 @@
 // src/components/pages/SettingsPage.jsx
 import React, { useState } from 'react';
 
-export default function SettingsPage({ 
-  onBack, serviceSettings, setServiceSettings, userRole, user, members, 
-  pendingInvites = [], cancelInvite, generateInviteLink, updateMemberRole, removeMember 
+export default function SettingsPage({
+  onBack, serviceSettings, setServiceSettings, userRole, user, members,
+  pendingInvites = [], cancelInvite, generateInviteLink, updateMemberRole, removeMember,
+  churchName, setChurchName
 }) {
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('viewer');
@@ -13,6 +14,23 @@ export default function SettingsPage({
       <button className="btn-secondary" onClick={onBack} style={{ marginBottom: '24px' }}>← Back to Dashboard</button>
       
       <div style={{ display: 'grid', gap: '24px' }}>
+        <div className="card">
+          <h2 style={{ color: '#1e3a5f', marginTop: 0, marginBottom: '24px', fontSize: '24px', fontWeight: '800' }}>Congregation Profile</h2>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            <label style={{ fontSize: '11px', fontWeight: '800', color: '#999', textTransform: 'uppercase' }}>Congregation Name</label>
+            <input
+              className="input-field"
+              value={churchName || ''}
+              onChange={e => setChurchName(e.target.value)}
+              disabled={userRole !== 'owner'}
+              placeholder="Enter congregation name..."
+            />
+            {userRole !== 'owner' && (
+              <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>Only the owner can change the congregation name.</p>
+            )}
+          </div>
+        </div>
+
         <div className="card">
           <h2 style={{ color: '#1e3a5f', marginTop: 0, marginBottom: '24px', fontSize: '24px', fontWeight: '800' }}>Service Settings</h2>
           {Object.keys(serviceSettings).map(k => (
@@ -35,7 +53,7 @@ export default function SettingsPage({
           ))}
         </div>
 
-        {userRole === 'owner' && (
+        {['owner', 'admin'].includes(userRole) && (
           <div className="card">
             <h2 style={{ color: '#1e3a5f', marginTop: 0, marginBottom: '12px', fontSize: '24px', fontWeight: '800' }}>Organization Management</h2>
             <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', marginBottom: '32px', border: '1px solid #e2e8f0' }}>

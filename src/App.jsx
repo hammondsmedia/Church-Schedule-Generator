@@ -293,33 +293,35 @@ export default function ChurchScheduleApp() {
         {currentPage === 'account' ? (
           <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
         ) : currentPage === 'settings' ? (
-          <SettingsPage onBack={() => setCurrentPage('dashboard')} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} cancelInvite={cancelInvite} generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} />
+          <SettingsPage onBack={() => setCurrentPage('dashboard')} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} cancelInvite={cancelInvite} generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} churchName={churchName} setChurchName={setChurchName} />
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '28px', fontWeight: '800' }}>{churchName || 'Your Congregation'}</h2>
-              <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>←</button>
-                    <span style={{ fontWeight: '800', minWidth: '140px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                    <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>→</button>
-                </div>
-                <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>⚡ Actions ▼</button>
-                {showActions && (
-                  <div className="actions-dropdown">
-                    <button className="dropdown-item" onClick={() => { exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName); setShowActions(false); }}>📄 Export PDF</button>
-                    <button className="dropdown-item" onClick={() => { exportToCSV(selectedMonth, schedule, members, serviceSettings, getSpeakerName); setShowActions(false); }}>📊 Export CSV</button>
-                    {['owner', 'admin'].includes(userRole) && (
-                      <>
-                        <button className="dropdown-item" onClick={() => { fileInputRef.current.click(); setShowActions(false); }}>📥 Import CSV</button>
-                        <input type="file" ref={fileInputRef} onChange={handleImportCSV} style={{ display: 'none' }} />
-                        <button className="dropdown-item" style={{ color: 'red' }} onClick={handleClearMonth}>🗑️ Clear Month</button>
-                      </>
-                    )}
+              {view === 'calendar' && (
+                <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>←</button>
+                      <span style={{ fontWeight: '800', minWidth: '140px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                      <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>→</button>
                   </div>
-                )}
-                {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={handleGenerateSchedule}>✨ Generate</button>}
-              </div>
+                  <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>⚡ Actions ▼</button>
+                  {showActions && (
+                    <div className="actions-dropdown">
+                      <button className="dropdown-item" onClick={() => { exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName); setShowActions(false); }}>📄 Export PDF</button>
+                      <button className="dropdown-item" onClick={() => { exportToCSV(selectedMonth, schedule, members, serviceSettings, getSpeakerName); setShowActions(false); }}>📊 Export CSV</button>
+                      {['owner', 'admin'].includes(userRole) && (
+                        <>
+                          <button className="dropdown-item" onClick={() => { fileInputRef.current.click(); setShowActions(false); }}>📥 Import CSV</button>
+                          <input type="file" ref={fileInputRef} onChange={handleImportCSV} style={{ display: 'none' }} />
+                          <button className="dropdown-item" style={{ color: 'red' }} onClick={handleClearMonth}>🗑️ Clear Month</button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={handleGenerateSchedule}>✨ Generate</button>}
+                </div>
+              )}
             </div>
 
             {/* RESTORED: SERVICES TAB BUTTON */}
