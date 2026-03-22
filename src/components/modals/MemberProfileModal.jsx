@@ -19,18 +19,18 @@ export default function MemberProfileModal({
   const isAdmin = ['owner', 'admin'].includes(userRole);
   const isOwnProfile = user?.uid === editingMember.id;
 
-  // Determine if the current logged-in user is a parent in the same family as the profile being viewed
+  // Determine if the current logged-in user is a parent/spouse in the same family as the profile being viewed
   const currentUserMember = (members || []).find(m => m.id === user?.uid);
-  const currentUserIsParent = currentUserMember?.familyRole === 'parent';
+  const currentUserCanEditFamily = ['parent', 'spouse'].includes(currentUserMember?.familyRole);
   const isSameFamilyMember = !isOwnProfile &&
     currentUserMember?.familyId &&
     currentUserMember.familyId === editingMember.familyId;
-  const canEdit = isAdmin || isOwnProfile || (currentUserIsParent && !!isSameFamilyMember);
+  const canEdit = isAdmin || isOwnProfile || (currentUserCanEditFamily && !!isSameFamilyMember);
   const isReadOnly = !canEdit;
 
-  // Parents and admins can manage family (add members, send invites)
-  const canManageFamily = isAdmin || (isOwnProfile && editingMember.familyRole === 'parent') ||
-    (currentUserIsParent && !!currentUserMember?.familyId);
+  // Parents, spouses, and admins can manage family (add members, send invites)
+  const canManageFamily = isAdmin || (isOwnProfile && ['parent', 'spouse'].includes(editingMember.familyRole)) ||
+    (currentUserCanEditFamily && !!currentUserMember?.familyId);
 
   const isNewMember = !members.find(m => m.id === editingMember.id);
 
@@ -437,16 +437,28 @@ export default function MemberProfileModal({
                   >
                     <option value="">— Not Set —</option>
                     <option value="parent">Parent</option>
+                    <option value="spouse">Spouse</option>
                     <option value="child">Child</option>
+                    <option value="independent">Independent</option>
                   </select>
                   {editingMember.familyRole === 'parent' && (
                     <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
                       Parents can edit their own profile and any family member's profile.
                     </p>
                   )}
+                  {editingMember.familyRole === 'spouse' && (
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
+                      Spouses can edit their own profile and their partner's profile.
+                    </p>
+                  )}
                   {editingMember.familyRole === 'child' && (
                     <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
                       Children can only edit their own profile.
+                    </p>
+                  )}
+                  {editingMember.familyRole === 'independent' && (
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
+                      Independent members manage their own profile.
                     </p>
                   )}
                 </div>
