@@ -1,7 +1,7 @@
 // src/components/tabs/DirectoryTab.jsx
 import React, { useState } from 'react';
 
-export default function DirectoryTab({ members = [], families = [], userRole, setEditingMember }) {
+export default function DirectoryTab({ members = [], families = [], userRole, setEditingMember, user }) {
   const [search, setSearch] = useState("");
   const isAdmin = ['owner', 'admin'].includes(userRole);
 
@@ -46,7 +46,7 @@ export default function DirectoryTab({ members = [], families = [], userRole, se
                     {m.leadershipRole && <span className="service-badge" style={{ background: '#f3f4f6', color: '#1e3a5f', marginTop: '6px' }}>{m.leadershipRole}</span>}
                   </div>
                   <button className="btn-secondary" style={{ padding: '5px 12px', fontSize: '12px', borderRadius: '6px' }} onClick={() => setEditingMember(m)}>
-                    {isAdmin ? "✏️ Edit" : "👁️ View"}
+                    {isAdmin || m.id === user?.uid ? "✏️ Edit" : "👁️ View"}
                   </button>
                 </div>
                 <div style={{ fontSize: '13px', color: '#64748b', marginTop: '12px' }}>
