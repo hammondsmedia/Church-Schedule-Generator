@@ -438,7 +438,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} />
+      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} storage={storage.current} removeMember={removeMember} user={user} />
       {/* PASSING DELETE HANDLER */}
       <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} handleDeleteSlot={handleDeleteSlot} userRole={userRole} setAssigningSlot={setAssigningSlot} />
 
