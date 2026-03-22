@@ -429,7 +429,7 @@ export default function ChurchScheduleApp() {
               {view === 'directory' ? (
                 <DirectoryTab members={members} families={families} userRole={userRole} setEditingMember={setEditingMember} />
               ) : view === 'services' ? (
-                <ServicesTab servicePeople={servicePeople} setServicePeople={setServicePeople} speakers={members} schedule={schedule} />
+                <ServicesTab members={members} schedule={schedule} />
               ) : (
                 <CalendarTab selectedMonth={selectedMonth} schedule={schedule} serviceSettings={serviceSettings} userRole={userRole} setAssigningSlot={setAssigningSlot} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} />
               )}
