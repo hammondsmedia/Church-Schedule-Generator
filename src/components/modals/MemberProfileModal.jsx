@@ -4,34 +4,51 @@ import React, { useState, useRef } from 'react';
 export default function MemberProfileModal({
   isOpen, onClose, editingMember, setEditingMember,
   members, setMembers, families, setFamilies,
-  serviceSettings, userRole, storage, removeMember, user
+  serviceSettings, userRole, storage, removeMember, user,
+  onSaveProfile, generateInviteLink
 }) {
   const [activeTab, setActiveTab] = useState('about');
   const [uploading, setUploading] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteSending, setInviteSending] = useState(false);
   const photoInputRef = useRef(null);
 
   if (!isOpen || !editingMember) return null;
 
   const isAdmin = ['owner', 'admin'].includes(userRole);
   const isOwnProfile = user?.uid === editingMember.id;
-  const canEdit = isAdmin || isOwnProfile;    // can save basic info
+
+  // Determine if the current logged-in user is a parent in the same family as the profile being viewed
+  const currentUserMember = (members || []).find(m => m.id === user?.uid);
+  const currentUserIsParent = currentUserMember?.familyRole === 'parent';
+  const isSameFamilyMember = !isOwnProfile &&
+    currentUserMember?.familyId &&
+    currentUserMember.familyId === editingMember.familyId;
+  const canEdit = isAdmin || isOwnProfile || (currentUserIsParent && !!isSameFamilyMember);
   const isReadOnly = !canEdit;
+
+  // Parents and admins can manage family (add members, send invites)
+  const canManageFamily = isAdmin || (isOwnProfile && editingMember.familyRole === 'parent') ||
+    (currentUserIsParent && !!currentUserMember?.familyId);
+
   const isNewMember = !members.find(m => m.id === editingMember.id);
 
-  const handleSave = () => {
-    if (isReadOnly) return;
+  const handleSave = async () => {
+    if (!canEdit) return;
+    let updatedMembers;
     if (!isNewMember) {
-      setMembers(members.map(m => m.id === editingMember.id ? editingMember : m));
+      updatedMembers = members.map(m => m.id === editingMember.id ? editingMember : m);
     } else {
-      setMembers([...members, editingMember]);
+      updatedMembers = [...members, editingMember];
     }
+    setMembers(updatedMembers);
+    if (onSaveProfile) await onSaveProfile(updatedMembers);
     onClose();
   };
 
   const handleDelete = () => {
     if (!window.confirm(`Remove ${editingMember.firstName} ${editingMember.lastName} from the directory?`)) return;
-    // For real account members, also update their Firestore user doc
     if (editingMember.hasAccount !== false && removeMember) {
       removeMember(editingMember.id, editingMember.firstName);
     } else {
@@ -54,8 +71,13 @@ export default function MemberProfileModal({
   };
 
   const updateField = (field, value) => {
-    if (isReadOnly) return;
+    if (!canEdit) return;
     setEditingMember({ ...editingMember, [field]: value });
+  };
+
+  const toggleHiddenField = (field) => {
+    const hidden = editingMember.hiddenFields || {};
+    setEditingMember({ ...editingMember, hiddenFields: { ...hidden, [field]: !hidden[field] } });
   };
 
   const addRepeatRule = () => {
@@ -83,6 +105,26 @@ export default function MemberProfileModal({
     setNewFamilyName('');
   };
 
+  const handleAddFamilyMember = () => {
+    setEditingMember({
+      id: Date.now(),
+      firstName: '', lastName: '',
+      isSpeaker: false, serviceSkills: [], leadershipRole: '',
+      familyId: editingMember.familyId,
+      availability: {}, repeatRules: [], hasAccount: false
+    });
+  };
+
+  const handleSendInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteSending(true);
+    try {
+      await generateInviteLink(inviteEmail.trim(), 'member');
+      setInviteEmail('');
+    } catch (err) { alert("Failed to send invite."); }
+    setInviteSending(false);
+  };
+
   const currentFamily = (families || []).find(f => f.id === editingMember.familyId);
   const householdMembers = (members || []).filter(m => m.familyId === editingMember.familyId && m.id !== editingMember.id);
 
@@ -92,6 +134,7 @@ export default function MemberProfileModal({
   ];
 
   const initials = `${editingMember.firstName?.charAt(0) || ''}${editingMember.lastName?.charAt(0) || ''}`.toUpperCase();
+  const hiddenFields = editingMember.hiddenFields || {};
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
@@ -152,6 +195,34 @@ export default function MemberProfileModal({
               <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Address</label>
               <textarea className="input-field" disabled={isReadOnly} value={editingMember.address || ''} onChange={e => updateField('address', e.target.value)} rows={2} style={{ resize: 'vertical' }} placeholder="Street, City, State ZIP" />
             </div>
+
+            {/* Privacy Controls — only shown to the profile owner or admins */}
+            {(isOwnProfile || isAdmin) && (
+              <div style={{ borderTop: '1px solid #eee', paddingTop: '12px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                  Hide from Directory
+                </label>
+                <div style={{ display: 'grid', gap: '6px' }}>
+                  {[
+                    { key: 'phone', label: 'Phone number' },
+                    { key: 'email', label: 'Email address' },
+                    { key: 'address', label: 'Home address' },
+                  ].map(({ key, label }) => (
+                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#4b5563', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!hiddenFields[key]}
+                        onChange={() => toggleHiddenField(key)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '6px', marginBottom: 0 }}>
+                  Hidden fields are only visible to admins.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -262,17 +333,43 @@ export default function MemberProfileModal({
 
             {activeTab === 'family' && (
               <div style={{ display: 'grid', gap: '20px' }}>
+
+                {/* Family Role */}
                 <div className="card" style={{ background: '#f8f6f3', border: '1px dashed #ddd', padding: '16px' }}>
-                  <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>HOUSEHOLD LINK</label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <select className="input-field" disabled={isReadOnly} value={editingMember.familyId || ""} onChange={e => updateField('familyId', e.target.value)}>
-                      <option value="">— Not Linked —</option>
-                      {(families || []).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                    </select>
-                  </div>
+                  <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>FAMILY ROLE</label>
+                  <select
+                    className="input-field"
+                    disabled={isReadOnly}
+                    value={editingMember.familyRole || ''}
+                    onChange={e => updateField('familyRole', e.target.value)}
+                  >
+                    <option value="">— Not Set —</option>
+                    <option value="parent">Parent</option>
+                    <option value="child">Child</option>
+                  </select>
+                  {editingMember.familyRole === 'parent' && (
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
+                      Parents can edit their own profile and any family member's profile.
+                    </p>
+                  )}
+                  {editingMember.familyRole === 'child' && (
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
+                      Children can only edit their own profile.
+                    </p>
+                  )}
                 </div>
 
-                {!isReadOnly && (
+                {/* Household Link */}
+                <div className="card" style={{ background: '#f8f6f3', border: '1px dashed #ddd', padding: '16px' }}>
+                  <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>HOUSEHOLD LINK</label>
+                  <select className="input-field" disabled={isReadOnly} value={editingMember.familyId || ""} onChange={e => updateField('familyId', e.target.value)}>
+                    <option value="">— Not Linked —</option>
+                    {(families || []).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </div>
+
+                {/* Create New Family — only admins or parents without a family */}
+                {isAdmin && (
                   <div className="card" style={{ background: '#f0f9ff', border: '1px dashed #bae6fd', padding: '16px' }}>
                     <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>CREATE NEW FAMILY</label>
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -288,11 +385,91 @@ export default function MemberProfileModal({
                   </div>
                 )}
 
-                {currentFamily && householdMembers.length > 0 && (
+                {/* Household Members */}
+                {currentFamily && (
                   <div>
-                    <h4 style={{ color: '#1e3a5f', marginBottom: '12px' }}>Household Members</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {householdMembers.map(m => <div key={m.id} className="service-badge" style={{ background: '#fff', border: '1px solid #eee' }}>👤 {m.firstName} {m.lastName}</div>)}
+                    <h4 style={{ color: '#1e3a5f', marginBottom: '12px' }}>
+                      {currentFamily.name}
+                      {householdMembers.length > 0 ? ` · ${householdMembers.length + 1} member${householdMembers.length > 0 ? 's' : ''}` : ''}
+                    </h4>
+                    {householdMembers.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                        {householdMembers.map(m => (
+                          canManageFamily ? (
+                            <button
+                              key={m.id}
+                              className="service-badge"
+                              style={{ background: '#fff', border: '1px solid #e5e7eb', cursor: 'pointer' }}
+                              onClick={() => setEditingMember(m)}
+                            >
+                              ✏️ {m.firstName} {m.lastName}
+                            </button>
+                          ) : (
+                            <div key={m.id} className="service-badge" style={{ background: '#fff', border: '1px solid #eee' }}>
+                              👤 {m.firstName} {m.lastName}
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Family management actions for parents and admins */}
+                    {canManageFamily && (
+                      <div style={{ display: 'grid', gap: '12px' }}>
+                        <button
+                          className="btn-secondary"
+                          style={{ justifyContent: 'center' }}
+                          onClick={handleAddFamilyMember}
+                        >
+                          + Add Family Member
+                        </button>
+
+                        {generateInviteLink && (
+                          <div style={{ background: '#f0fdf4', border: '1px dashed #86efac', borderRadius: '10px', padding: '14px' }}>
+                            <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px', color: '#166534' }}>
+                              INVITE FAMILY MEMBER
+                            </label>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <input
+                                className="input-field"
+                                type="email"
+                                placeholder="their@email.com"
+                                value={inviteEmail}
+                                onChange={e => setInviteEmail(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleSendInvite()}
+                              />
+                              <button
+                                className="btn-primary"
+                                style={{ whiteSpace: 'nowrap', background: '#16a34a' }}
+                                onClick={handleSendInvite}
+                                disabled={inviteSending}
+                              >
+                                {inviteSending ? '…' : 'Send Invite'}
+                              </button>
+                            </div>
+                            <p style={{ fontSize: '11px', color: '#6b7280', margin: '6px 0 0 0' }}>
+                              They'll receive a link to join this family in the directory.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* No family linked yet, but parent can create one */}
+                {!currentFamily && canManageFamily && !isAdmin && (
+                  <div className="card" style={{ background: '#f0f9ff', border: '1px dashed #bae6fd', padding: '16px' }}>
+                    <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>CREATE NEW FAMILY</label>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input
+                        className="input-field"
+                        placeholder="e.g. The Smith Family"
+                        value={newFamilyName}
+                        onChange={e => setNewFamilyName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleCreateFamily()}
+                      />
+                      <button className="btn-primary" style={{ whiteSpace: 'nowrap' }} onClick={handleCreateFamily}>+ Create</button>
                     </div>
                   </div>
                 )}
