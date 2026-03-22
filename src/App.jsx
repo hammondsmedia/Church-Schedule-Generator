@@ -231,8 +231,15 @@ export default function ChurchScheduleApp() {
 
   const cancelInvite = async (id) => { await db.current.collection('invitations').doc(id).delete(); fetchOrgData(orgId); };
   const updateMemberRole = async (uid, role) => {
-    await db.current.collection('users').doc(uid).update({ role });
-    setMembers(prev => prev.map(m => m.id === uid ? { ...m, role } : m));
+    try {
+      const updatedMembers = members.map(m => m.id === uid ? { ...m, role } : m);
+      await db.current.collection('users').doc(uid).update({ role });
+      await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
+      setMembers(updatedMembers);
+    } catch (err) {
+      console.error('Failed to update role:', err);
+      alert('Failed to update role. Please try again.');
+    }
   };
   const removeMember = async (id, name) => {
     if (!window.confirm(`Remove ${name}?`)) return;
