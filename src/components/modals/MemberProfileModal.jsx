@@ -1,19 +1,24 @@
 // src/components/modals/MemberProfileModal.jsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
-export default function MemberProfileModal({ 
-  isOpen, onClose, editingMember, setEditingMember, 
-  members, setMembers, families, setFamilies, 
-  serviceSettings, userRole 
+export default function MemberProfileModal({
+  isOpen, onClose, editingMember, setEditingMember,
+  members, setMembers, families, setFamilies,
+  serviceSettings, userRole, storage, removeMember, user
 }) {
   const [activeTab, setActiveTab] = useState('about');
+  const [uploading, setUploading] = useState(false);
+  const [newFamilyName, setNewFamilyName] = useState('');
+  const photoInputRef = useRef(null);
+
   if (!isOpen || !editingMember) return null;
 
   const isReadOnly = !['owner', 'admin'].includes(userRole);
+  const isNewMember = !members.find(m => m.id === editingMember.id);
 
   const handleSave = () => {
     if (isReadOnly) return;
-    if (members.find(m => m.id === editingMember.id)) {
+    if (!isNewMember) {
       setMembers(members.map(m => m.id === editingMember.id ? editingMember : m));
     } else {
       setMembers([...members, editingMember]);
@@ -21,12 +26,35 @@ export default function MemberProfileModal({
     onClose();
   };
 
+  const handleDelete = () => {
+    if (!window.confirm(`Remove ${editingMember.firstName} ${editingMember.lastName} from the directory?`)) return;
+    // For real account members, also update their Firestore user doc
+    if (editingMember.hasAccount !== false && removeMember) {
+      removeMember(editingMember.id, editingMember.firstName);
+    } else {
+      setMembers(members.filter(m => m.id !== editingMember.id));
+    }
+    onClose();
+  };
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !storage) return alert("Storage not available.");
+    setUploading(true);
+    try {
+      const ref = storage.ref(`profile_pics/${editingMember.id}`);
+      await ref.put(file);
+      const url = await ref.getDownloadURL();
+      setEditingMember({ ...editingMember, photoURL: url });
+    } catch (err) { alert("Upload failed."); }
+    setUploading(false);
+  };
+
   const updateField = (field, value) => {
     if (isReadOnly) return;
     setEditingMember({ ...editingMember, [field]: value });
   };
 
-  // Speaker Rules Logic
   const addRepeatRule = () => {
     const rules = editingMember.repeatRules || [];
     updateField('repeatRules', [...rules, { serviceType: 'sundayMorning', pattern: 'everyOther', startWeek: 'odd' }]);
@@ -44,39 +72,83 @@ export default function MemberProfileModal({
     updateField('repeatRules', rules);
   };
 
+  const handleCreateFamily = () => {
+    if (!newFamilyName.trim()) return;
+    const newFamily = { id: 'fam_' + Date.now(), name: newFamilyName.trim() };
+    setFamilies([...(families || []), newFamily]);
+    updateField('familyId', newFamily.id);
+    setNewFamilyName('');
+  };
+
   const currentFamily = (families || []).find(f => f.id === editingMember.familyId);
   const householdMembers = (members || []).filter(m => m.familyId === editingMember.familyId && m.id !== editingMember.id);
 
   const skillOptions = [
-    "Teacher", "Prayers", "Songs", "Contribution/Collection", 
+    "Teacher", "Prayers", "Songs", "Contribution/Collection",
     "Communion", "Opening Announcements", "Closing Announcements"
   ];
+
+  const initials = `${editingMember.firstName?.charAt(0) || ''}${editingMember.lastName?.charAt(0) || ''}`.toUpperCase();
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
       <div className="card" style={{ width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', padding: 0, overflow: 'hidden' }}>
-        
+
         {/* SIDEBAR */}
         <div style={{ width: '300px', borderRight: '1px solid #eee', padding: '24px', background: '#fbfbfc', overflowY: 'auto' }}>
           <h3 style={{ margin: '0 0 20px 0' }}>About Person</h3>
-          <div style={{ display: 'grid', gap: '14px' }}>
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>First Name</label>
-            <input className="input-field" disabled={isReadOnly} value={editingMember.firstName || ''} onChange={e => updateField('firstName', e.target.value)} />
-            
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Last Name</label>
-            <input className="input-field" disabled={isReadOnly} value={editingMember.lastName || ''} onChange={e => updateField('lastName', e.target.value)} />
-            
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Leadership Role</label>
-            <select className="input-field" disabled={isReadOnly} value={editingMember.leadershipRole || ''} onChange={e => updateField('leadershipRole', e.target.value)}>
-              <option value="">None</option>
-              <option value="Elder">Elder</option>
-              <option value="Deacon">Deacon</option>
-              <option value="Evangelist">Evangelist</option>
-              <option value="Teacher">Teacher</option>
-            </select>
-            
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Phone</label>
-            <input className="input-field" disabled={isReadOnly} value={editingMember.phone || ''} onChange={e => updateField('phone', e.target.value)} />
+
+          {/* Photo Upload */}
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              {editingMember.photoURL ? (
+                <img src={editingMember.photoURL} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #e5e7eb' }} alt="Profile" />
+              ) : (
+                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#1e3a5f', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '800' }}>
+                  {initials || '?'}
+                </div>
+              )}
+              {!isReadOnly && (
+                <label htmlFor="member-photo-upload" style={{ position: 'absolute', bottom: '0px', right: '0px', background: '#4b5563', color: 'white', width: '26px', height: '26px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px solid #fff', fontSize: '12px' }}>
+                  {uploading ? '…' : '📷'}
+                </label>
+              )}
+            </div>
+            <input type="file" id="member-photo-upload" ref={photoInputRef} style={{ display: 'none' }} onChange={handlePhotoUpload} accept="image/*" />
+            {uploading && <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Uploading...</div>}
+          </div>
+
+          <div style={{ display: 'grid', gap: '10px' }}>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>First Name</label>
+              <input className="input-field" disabled={isReadOnly} value={editingMember.firstName || ''} onChange={e => updateField('firstName', e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Last Name</label>
+              <input className="input-field" disabled={isReadOnly} value={editingMember.lastName || ''} onChange={e => updateField('lastName', e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Leadership Role</label>
+              <select className="input-field" disabled={isReadOnly} value={editingMember.leadershipRole || ''} onChange={e => updateField('leadershipRole', e.target.value)}>
+                <option value="">None</option>
+                <option value="Elder">Elder</option>
+                <option value="Deacon">Deacon</option>
+                <option value="Evangelist">Evangelist</option>
+                <option value="Teacher">Teacher</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Phone</label>
+              <input className="input-field" disabled={isReadOnly} value={editingMember.phone || ''} onChange={e => updateField('phone', e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Email</label>
+              <input className="input-field" type="email" disabled={isReadOnly} value={editingMember.email || ''} onChange={e => updateField('email', e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Address</label>
+              <textarea className="input-field" disabled={isReadOnly} value={editingMember.address || ''} onChange={e => updateField('address', e.target.value)} rows={2} style={{ resize: 'vertical' }} placeholder="Street, City, State ZIP" />
+            </div>
           </div>
         </div>
 
@@ -100,7 +172,7 @@ export default function MemberProfileModal({
             {activeTab === 'speaker' && (
               <div>
                 <label style={{ display: 'flex', gap: '12px', fontWeight: 'bold', marginBottom: '24px', alignItems: 'center' }}>
-                  <input type="checkbox" disabled={isReadOnly} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} /> 
+                  <input type="checkbox" disabled={isReadOnly} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} />
                   Enable for Schedule Generator
                 </label>
 
@@ -125,7 +197,6 @@ export default function MemberProfileModal({
                         <strong>Repeat Rules</strong>
                         {!isReadOnly && <button className="btn-secondary" style={{fontSize: '11px', padding: '4px 8px'}} onClick={addRepeatRule}>+ Add Rule</button>}
                       </div>
-                      
                       <div style={{ display: 'grid', gap: '12px' }}>
                         {(editingMember.repeatRules || []).map((rule, idx) => (
                           <div key={idx} style={{ background: '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid #eee', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -175,7 +246,7 @@ export default function MemberProfileModal({
                 </div>
               </div>
             )}
-            
+
             {activeTab === 'family' && (
               <div style={{ display: 'grid', gap: '20px' }}>
                 <div className="card" style={{ background: '#f8f6f3', border: '1px dashed #ddd', padding: '16px' }}>
@@ -187,6 +258,23 @@ export default function MemberProfileModal({
                     </select>
                   </div>
                 </div>
+
+                {!isReadOnly && (
+                  <div className="card" style={{ background: '#f0f9ff', border: '1px dashed #bae6fd', padding: '16px' }}>
+                    <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>CREATE NEW FAMILY</label>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input
+                        className="input-field"
+                        placeholder="e.g. The Smith Family"
+                        value={newFamilyName}
+                        onChange={e => setNewFamilyName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleCreateFamily()}
+                      />
+                      <button className="btn-primary" style={{ whiteSpace: 'nowrap' }} onClick={handleCreateFamily}>+ Create</button>
+                    </div>
+                  </div>
+                )}
+
                 {currentFamily && householdMembers.length > 0 && (
                   <div>
                     <h4 style={{ color: '#1e3a5f', marginBottom: '12px' }}>Household Members</h4>
@@ -199,9 +287,16 @@ export default function MemberProfileModal({
             )}
           </div>
 
-          <div style={{ padding: '20px 32px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '12px', background: '#fff' }}>
-            <button className="btn-secondary" onClick={onClose}>Cancel</button>
-            {!isReadOnly && <button className="btn-primary" onClick={handleSave}>Save Profile</button>}
+          <div style={{ padding: '20px 32px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
+            {!isReadOnly && !isNewMember ? (
+              <button onClick={handleDelete} style={{ background: 'none', border: 'none', color: '#dc2626', fontWeight: '700', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Delete
+              </button>
+            ) : <div />}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn-secondary" onClick={onClose}>Cancel</button>
+              {!isReadOnly && <button className="btn-primary" onClick={handleSave}>Save Profile</button>}
+            </div>
           </div>
         </div>
       </div>
