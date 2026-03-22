@@ -51,7 +51,9 @@ export default function DirectoryTab({ members = [], families = [], userRole, se
                 </div>
                 <div style={{ fontSize: '13px', color: '#64748b', marginTop: '12px' }}>
                   {family && <div style={{ color: '#9a3412', fontWeight: '700', marginBottom: '4px' }}>🏠 {family.name}</div>}
-                  <div>📞 {m.phone || '—'}</div>
+                  {(!m.hiddenFields?.phone || isAdmin) && (
+                    <div>📞 {m.hiddenFields?.phone && isAdmin ? <span style={{ color: '#9ca3af' }}>{m.phone || '—'} <span style={{ fontSize: '10px' }}>(hidden)</span></span> : (m.phone || '—')}</div>
+                  )}
                 </div>
               </div>
             </div>

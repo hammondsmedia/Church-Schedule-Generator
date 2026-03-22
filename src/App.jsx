@@ -208,6 +208,16 @@ export default function ChurchScheduleApp() {
     } catch (err) { alert("Save failed."); }
   };
 
+  // Direct Firestore save for non-admin member profile edits (auto-save only runs for admins)
+  const handleSaveProfile = async (updatedMembers) => {
+    if (!['owner', 'admin'].includes(userRole)) {
+      try {
+        await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
+      } catch (err) { alert("Save failed. Please try again."); }
+    }
+    // For admins the auto-save effect will handle persistence
+  };
+
   const cancelInvite = async (id) => { await db.current.collection('invitations').doc(id).delete(); fetchOrgData(orgId); };
   const updateMemberRole = async (uid, role) => { await db.current.collection('users').doc(uid).update({ role }); alert("Updated!"); };
   const removeMember = async (id, name) => {
@@ -342,7 +352,7 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} storage={storage.current} removeMember={removeMember} user={user} />
+      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} storage={storage.current} removeMember={removeMember} user={user} onSaveProfile={handleSaveProfile} generateInviteLink={generateInviteLink} />
       {/* PASSING DELETE HANDLER */}
       <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} handleDeleteSlot={handleDeleteSlot} userRole={userRole} setAssigningSlot={setAssigningSlot} />
 
