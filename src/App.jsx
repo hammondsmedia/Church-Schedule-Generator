@@ -101,7 +101,7 @@ export default function ChurchScheduleApp() {
       if (userDoc.exists) {
         const userData = userDoc.data();
         setOrgId(userData.orgId);
-        setUserRole(userData.role);
+        setUserRole((userData.role || '').toLowerCase());
         if (userData.orgId) {
           fetchOrgData(userData.orgId);
           const orgDoc = await db.current.collection('organizations').doc(userData.orgId).get();
@@ -333,7 +333,7 @@ export default function ChurchScheduleApp() {
 
             <div className="fade-in">
               {view === 'directory' ? (
-                <DirectoryTab members={members} userRole={userRole} setEditingMember={setEditingMember} />
+                <DirectoryTab members={members} families={families} userRole={userRole} setEditingMember={setEditingMember} />
               ) : view === 'services' ? (
                 <ServicesTab servicePeople={servicePeople} setServicePeople={setServicePeople} speakers={members} schedule={schedule} />
               ) : (
