@@ -71,7 +71,7 @@ export default function SettingsPage({
 
             <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '16px' }}>Current Directory Access</h3>
             <div style={{ display: 'grid', gap: '10px' }}>
-              {members.map(m => (
+              {members.filter(m => m.hasAccount !== false).map(m => (
                 <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#fff', border: '1px solid #eee', borderRadius: '10px' }}>
                   <div>
                     <div style={{ fontWeight: '800' }}>{m.firstName} {m.lastName} {m.id === user.uid && "(You)"}</div>

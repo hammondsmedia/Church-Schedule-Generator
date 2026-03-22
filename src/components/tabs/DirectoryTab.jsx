@@ -18,7 +18,7 @@ export default function DirectoryTab({ members = [], families = [], userRole, se
         <div style={{ display: 'flex', gap: '12px', flex: '1 1 300px' }}>
           <input className="input-field" placeholder="Search by name or role..." value={search} onChange={e => setSearch(e.target.value)} />
           {isAdmin && (
-            <button className="btn-primary" onClick={() => setEditingMember({ id: Date.now(), firstName: '', lastName: '', isSpeaker: false, serviceSkills: [], leadershipRole: "", familyId: "", availability: {}, repeatRules: [] })}>
+            <button className="btn-primary" onClick={() => setEditingMember({ id: Date.now(), firstName: '', lastName: '', isSpeaker: false, serviceSkills: [], leadershipRole: "", familyId: "", availability: {}, repeatRules: [], hasAccount: false })}>
               + Add Member
             </button>
           )}
