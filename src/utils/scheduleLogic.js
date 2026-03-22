@@ -1,8 +1,5 @@
 // src/utils/scheduleLogic.js
 
-/**
- * Calculates all days for a given month view (including padding days)
- */
 export const getMonthDays = (date) => {
   const y = date.getFullYear(), m = date.getMonth();
   const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
@@ -13,19 +10,14 @@ export const getMonthDays = (date) => {
   return d;
 };
 
-/**
- * Checks if a specific speaker is available for a date and service type
- */
-export const isSpeakerAvailable = (speaker, date, type) => {
-  if (!speaker.availability[type]) return false;
+export const isSpeakerAvailable = (member, date, type) => {
+  // Strict Logic: Member must be enabled and have specific availability checked
+  if (!member.isSpeaker || !member.availability?.[type]) return false;
   const ds = date.toISOString().split('T')[0];
-  for (const b of (speaker.blockOffDates || [])) if (ds >= b.start && ds <= b.end) return false;
+  for (const b of (member.blockOffDates || [])) if (ds >= b.start && ds <= b.end) return false;
   return true;
 };
 
-/**
- * Seeded shuffle to ensure consistent results for the same month/seed
- */
 export const shuffleArray = (array, seed) => {
   const shuffled = [...array];
   let currentIndex = shuffled.length;
@@ -38,16 +30,13 @@ export const shuffleArray = (array, seed) => {
   return shuffled;
 };
 
-/**
- * The core engine that builds the schedule based on rules and priorities
- */
-export const generateScheduleLogic = (selectedMonth, speakers, serviceSettings, existingSchedule) => {
+export const generateScheduleLogic = (selectedMonth, members, serviceSettings, existingSchedule) => {
   const days = getMonthDays(selectedMonth);
   const newSchedule = { ...existingSchedule };
   const seed = selectedMonth.getFullYear() * 12 + selectedMonth.getMonth();
   const counts = {}; 
   
-  speakers.forEach(s => counts[s.id] = { sundayMorning: 0, sundayEvening: 0, wednesdayEvening: 0, communion: 0 });
+  members.forEach(m => counts[m.id] = { sundayMorning: 0, sundayEvening: 0, wednesdayEvening: 0, communion: 0 });
   
   const slots = { sundayMorning: [], sundayEvening: [], wednesdayEvening: [], communion: [] };
   let sc = 0;
@@ -59,29 +48,28 @@ export const generateScheduleLogic = (selectedMonth, speakers, serviceSettings, 
       sc++;
       if (serviceSettings.sundayMorning.enabled) slots.sundayMorning.push({ dk, date, week: sc });
       if (serviceSettings.sundayEvening.enabled) slots.sundayEvening.push({ dk, date, week: sc });
-      if (serviceSettings.communion.enabled && serviceSettings.sundayMorning.enabled) slots.communion.push({ dk, date, week: sc });
+      if (serviceSettings.communion.enabled) slots.communion.push({ dk, date, week: sc });
     }
     if (dw === 3 && serviceSettings.wednesdayEvening.enabled) slots.wednesdayEvening.push({ dk, date, week: Math.ceil(date.getDate() / 7) });
   });
 
   const getAvailable = (d, type, exId = null) => {
-    let av = speakers.filter(s => isSpeakerAvailable(s, d, type) && s.id !== exId);
-    const p1 = av.filter(s => s.priority === 1), p2 = av.filter(s => s.priority === 2), def = av.filter(s => !s.priority);
+    // STRICT EXCLUSION: Filters the morning speaker out of the communion pool
+    let av = members.filter(m => isSpeakerAvailable(m, d, type) && m.id !== exId);
     const off = type === 'sundayMorning' ? 0 : type === 'sundayEvening' ? 1000 : type === 'wednesdayEvening' ? 2000 : 3000;
     const sort = (a, b) => counts[a.id][type] - counts[b.id][type];
-    const sortedDefault = shuffleArray(def, seed + off).sort(sort);
-    return [...p1.sort(sort), ...p2.sort(sort), ...sortedDefault];
+    return shuffleArray(av, seed + off).sort(sort);
   };
 
   const applyRepeat = (type, list) => {
-    speakers.forEach(s => {
-      (s.repeatRules || []).filter(r => r.serviceType === type).forEach(r => {
+    members.forEach(m => {
+      (m.repeatRules || []).filter(r => r.serviceType === type).forEach(r => {
         list.forEach(sl => {
           const sk = sl.dk + '-' + type;
-          if (!newSchedule[sk] && isSpeakerAvailable(s, sl.date, type)) {
+          if (!newSchedule[sk] && isSpeakerAvailable(m, sl.date, type)) {
             if ((r.pattern === 'everyOther' && ((r.startWeek === 'odd') ? (sl.week % 2 !== 0) : (sl.week % 2 === 0))) || (r.pattern === 'nthWeek' && sl.week === r.nthWeek)) {
-              newSchedule[sk] = { speakerId: s.id, date: sl.dk, serviceType: type }; 
-              counts[s.id][type]++;
+              newSchedule[sk] = { speakerId: m.id, date: sl.dk, serviceType: type }; 
+              counts[m.id][type]++;
             }
           }
         });
@@ -91,10 +79,12 @@ export const generateScheduleLogic = (selectedMonth, speakers, serviceSettings, 
 
   ['sundayMorning', 'sundayEvening', 'wednesdayEvening'].forEach(t => applyRepeat(t, slots[t]));
   
-  const fill = (t, list, ex) => list.forEach(sl => {
+  const fill = (t, list, exType = null) => list.forEach(sl => {
     const sk = sl.dk + '-' + t;
     if (!newSchedule[sk]) {
-      const sel = getAvailable(sl.date, t, ex ? newSchedule[sl.dk + '-' + ex]?.speakerId : null)[0];
+      // Logic: If filling communion, find the morning speaker to exclude them
+      const exId = exType ? newSchedule[sl.dk + '-' + exType]?.speakerId : null;
+      const sel = getAvailable(sl.date, t, exId)[0];
       if (sel) { 
         newSchedule[sk] = { speakerId: sel.id, date: sl.dk, serviceType: t }; 
         counts[sel.id][t]++; 
@@ -103,7 +93,7 @@ export const generateScheduleLogic = (selectedMonth, speakers, serviceSettings, 
   });
 
   fill('sundayMorning', slots.sundayMorning); 
-  fill('communion', slots.communion, 'sundayMorning'); 
+  fill('communion', slots.communion, 'sundayMorning'); // STRICT EXCLUSION ACTIVE
   fill('sundayEvening', slots.sundayEvening); 
   fill('wednesdayEvening', slots.wednesdayEvening);
   
