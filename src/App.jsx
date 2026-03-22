@@ -146,6 +146,9 @@ export default function ChurchScheduleApp() {
   const handleGenerateSchedule = () => {
     const speakers = (members || []).filter(m => m.isSpeaker);
     if (speakers.length === 0) return alert("No speakers found. Ensure members have 'Enable for Schedule Generator' checked in Directory.");
+    const enabledTypes = Object.keys(serviceSettings).filter(k => serviceSettings[k]?.enabled);
+    const hasAvailability = speakers.some(m => enabledTypes.some(t => m.availability?.[t]));
+    if (!hasAvailability) return alert("Speakers are enabled, but none have availability set for any active service. Open a speaker's profile in the Directory and check their availability.");
     try {
       setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
       setView('calendar');
