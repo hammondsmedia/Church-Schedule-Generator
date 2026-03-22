@@ -61,6 +61,7 @@ export default function ChurchScheduleApp() {
   const storage = useRef(null);
   const fileInputRef = useRef(null);
   const dropdownRef = useRef(null);
+  const actionsRef = useRef(null);
   const isClearingRef = useRef(false); // CRITICAL: Stop auto-save during deletions
 
   // --- INITIALIZATION ---
@@ -87,6 +88,8 @@ export default function ChurchScheduleApp() {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setShowProfileMenu(false);
+      }
+      if (actionsRef.current && !actionsRef.current.contains(e.target)) {
         setShowActions(false);
       }
     };
@@ -315,7 +318,7 @@ export default function ChurchScheduleApp() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '28px', fontWeight: '800' }}>{churchName || 'Your Congregation'}</h2>
               {view === 'calendar' && (
-                <div style={{ display: 'flex', gap: '10px', position: 'relative' }}>
+                <div style={{ display: 'flex', gap: '10px', position: 'relative' }} ref={actionsRef}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>←</button>
                       <span style={{ fontWeight: '800', minWidth: '140px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
