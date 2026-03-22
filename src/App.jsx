@@ -52,6 +52,8 @@ export default function ChurchScheduleApp() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [setupName, setSetupName] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState(null);
 
   const [serviceSettings, setServiceSettings] = useState({
     sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
@@ -99,12 +101,16 @@ export default function ChurchScheduleApp() {
 
   const loadUserData = async (uid) => {
     setDataLoading(true);
+    setLoadError(null);
     try {
       const userDoc = await db.current.collection('users').doc(uid).get();
       if (userDoc.exists) {
         const userData = userDoc.data();
+        const rawRole = userData.role;
+        const normalizedRole = (rawRole || '').toLowerCase();
+        setDebugInfo({ uid, rawRole, normalizedRole, orgId: userData.orgId, docExists: true });
         setOrgId(userData.orgId);
-        setUserRole((userData.role || '').toLowerCase());
+        setUserRole(normalizedRole);
         if (userData.orgId) {
           fetchOrgData(userData.orgId);
           const orgDoc = await db.current.collection('organizations').doc(userData.orgId).get();
@@ -116,12 +122,18 @@ export default function ChurchScheduleApp() {
             setSchedule(d.schedule || {});
             setServiceSettings(d.serviceSettings || serviceSettings);
             setChurchName(d.churchName || '');
+          } else {
+            setDebugInfo(prev => ({ ...prev, orgDocExists: false }));
           }
         }
       } else {
+        setDebugInfo({ uid, docExists: false });
         setNeedsSetup(true);
       }
-    } catch (err) { console.error('Load Error:', err); }
+    } catch (err) {
+      console.error('Load Error:', err);
+      setLoadError(err.message || String(err));
+    }
     setDataLoading(false);
   };
 
@@ -285,6 +297,30 @@ export default function ChurchScheduleApp() {
     </div>
   );
 
+  if (loadError) return (
+    <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '520px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <h2 style={{ color: '#dc2626', marginBottom: '8px', fontFamily: 'Outfit' }}>Could Not Load Account</h2>
+        <p style={{ color: '#666', marginBottom: '16px', fontFamily: 'Outfit', fontSize: '14px' }}>There was an error loading your account data. This is usually a Firestore permission issue.</p>
+        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '12px', marginBottom: '20px', textAlign: 'left', fontFamily: 'monospace', fontSize: '13px', color: '#991b1b', wordBreak: 'break-all' }}>
+          {loadError}
+        </div>
+        {debugInfo && (
+          <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '12px', marginBottom: '20px', textAlign: 'left', fontFamily: 'monospace', fontSize: '12px', color: '#0369a1' }}>
+            <div>uid: {debugInfo.uid}</div>
+            <div>docExists: {String(debugInfo.docExists)}</div>
+            <div>rawRole: "{debugInfo.rawRole}"</div>
+            <div>normalizedRole: "{debugInfo.normalizedRole}"</div>
+            <div>orgId: {debugInfo.orgId}</div>
+          </div>
+        )}
+        <button onClick={() => { setLoadError(null); loadUserData(user.uid); }} style={{ background: '#1e3a5f', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontFamily: 'Outfit', marginRight: '8px' }}>Retry</button>
+        <button onClick={() => auth.current.signOut()} style={{ background: 'none', border: '2px solid #e5e7eb', color: '#666', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontFamily: 'Outfit' }}>Sign Out</button>
+      </div>
+    </div>
+  );
+
   if (needsSetup) return (
     <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '440px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
@@ -342,6 +378,11 @@ export default function ChurchScheduleApp() {
         </div>
       </header>
 
+      {debugInfo && !['owner', 'admin'].includes(userRole) && (
+        <div style={{ background: '#fef9c3', borderBottom: '2px solid #fde047', padding: '10px 24px', fontFamily: 'monospace', fontSize: '13px', color: '#713f12' }}>
+          ⚠️ Debug: uid={debugInfo.uid} | docExists={String(debugInfo.docExists)} | rawRole="{debugInfo.rawRole}" | normalizedRole="{debugInfo.normalizedRole}" | orgId={debugInfo.orgId}
+        </div>
+      )}
       <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 24px' }}>
         {currentPage === 'account' ? (
           <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
