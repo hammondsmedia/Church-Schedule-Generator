@@ -117,6 +117,9 @@ export default function ChurchScheduleApp() {
             setSchedule(d.schedule || {});
             setServiceSettings({ ...serviceSettings, ...(d.serviceSettings || {}) });
             setChurchName(d.churchName || '');
+            // Prefer role stored in org members array (updated by admins) over stale users doc
+            const memberInOrg = (d.members || []).find(m => m.id === uid);
+            if (memberInOrg?.role) setUserRole(memberInOrg.role.toLowerCase());
           }
         }
       } else {
@@ -233,7 +236,6 @@ export default function ChurchScheduleApp() {
   const updateMemberRole = async (uid, role) => {
     try {
       const updatedMembers = members.map(m => m.id === uid ? { ...m, role } : m);
-      await db.current.collection('users').doc(uid).update({ role });
       await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
       setMembers(updatedMembers);
     } catch (err) {
