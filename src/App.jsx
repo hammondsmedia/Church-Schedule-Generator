@@ -331,7 +331,7 @@ export default function ChurchScheduleApp() {
 
             <div className="fade-in">
               {view === 'directory' ? (
-                <DirectoryTab members={members} families={families} userRole={userRole} setEditingMember={setEditingMember} />
+                <DirectoryTab members={members} families={families} userRole={userRole} setEditingMember={setEditingMember} user={user} />
               ) : view === 'services' ? (
                 <ServicesTab members={members} schedule={schedule} />
               ) : (

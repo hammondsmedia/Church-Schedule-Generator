@@ -13,7 +13,10 @@ export default function MemberProfileModal({
 
   if (!isOpen || !editingMember) return null;
 
-  const isReadOnly = !['owner', 'admin'].includes(userRole);
+  const isAdmin = ['owner', 'admin'].includes(userRole);
+  const isOwnProfile = user?.uid === editingMember.id;
+  const canEdit = isAdmin || isOwnProfile;    // can save basic info
+  const isReadOnly = !canEdit;
   const isNewMember = !members.find(m => m.id === editingMember.id);
 
   const handleSave = () => {
@@ -108,7 +111,7 @@ export default function MemberProfileModal({
                   {initials || '?'}
                 </div>
               )}
-              {!isReadOnly && (
+              {canEdit && (
                 <label htmlFor="member-photo-upload" style={{ position: 'absolute', bottom: '0px', right: '0px', background: '#4b5563', color: 'white', width: '26px', height: '26px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px solid #fff', fontSize: '12px' }}>
                   {uploading ? '…' : '📷'}
                 </label>
@@ -129,7 +132,7 @@ export default function MemberProfileModal({
             </div>
             <div>
               <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Leadership Role</label>
-              <select className="input-field" disabled={isReadOnly} value={editingMember.leadershipRole || ''} onChange={e => updateField('leadershipRole', e.target.value)}>
+              <select className="input-field" disabled={!isAdmin} value={editingMember.leadershipRole || ''} onChange={e => updateField('leadershipRole', e.target.value)}>
                 <option value="">None</option>
                 <option value="Elder">Elder</option>
                 <option value="Deacon">Deacon</option>
@@ -171,8 +174,13 @@ export default function MemberProfileModal({
 
             {activeTab === 'speaker' && (
               <div>
+                {!isAdmin && (
+                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#0369a1', marginBottom: '20px' }}>
+                    Speaker scheduling settings are managed by your congregation's administrators.
+                  </div>
+                )}
                 <label style={{ display: 'flex', gap: '12px', fontWeight: 'bold', marginBottom: '24px', alignItems: 'center' }}>
-                  <input type="checkbox" disabled={isReadOnly} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} />
+                  <input type="checkbox" disabled={!isAdmin} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} />
                   Enable for Schedule Generator
                 </label>
 
@@ -182,8 +190,8 @@ export default function MemberProfileModal({
                       <strong style={{ display: 'block', marginBottom: '12px' }}>Weekly Availability</strong>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                         {Object.keys(serviceSettings).map(k => (
-                          <label key={k} className="service-badge" style={{ background: editingMember.availability?.[k] ? '#dbeafe' : '#f3f4f6', cursor: isReadOnly ? 'default' : 'pointer' }}>
-                            <input type="checkbox" disabled={isReadOnly} checked={editingMember.availability?.[k] || false} onChange={e => {
+                          <label key={k} className="service-badge" style={{ background: editingMember.availability?.[k] ? '#dbeafe' : '#f3f4f6', cursor: !isAdmin ? 'default' : 'pointer' }}>
+                            <input type="checkbox" disabled={!isAdmin} checked={editingMember.availability?.[k] || false} onChange={e => {
                               const avail = editingMember.availability || {};
                               updateField('availability', { ...avail, [k]: e.target.checked });
                             }} /> {serviceSettings[k].label}
@@ -195,25 +203,25 @@ export default function MemberProfileModal({
                     <div style={{ borderTop: '1px solid #eee', paddingTop: '20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <strong>Repeat Rules</strong>
-                        {!isReadOnly && <button className="btn-secondary" style={{fontSize: '11px', padding: '4px 8px'}} onClick={addRepeatRule}>+ Add Rule</button>}
+                        {isAdmin && <button className="btn-secondary" style={{fontSize: '11px', padding: '4px 8px'}} onClick={addRepeatRule}>+ Add Rule</button>}
                       </div>
                       <div style={{ display: 'grid', gap: '12px' }}>
                         {(editingMember.repeatRules || []).map((rule, idx) => (
                           <div key={idx} style={{ background: '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid #eee', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <select className="input-field" style={{flex: '1 1 120px', padding: '4px'}} value={rule.serviceType} onChange={e => updateRule(idx, 'serviceType', e.target.value)}>
+                            <select className="input-field" disabled={!isAdmin} style={{flex: '1 1 120px', padding: '4px'}} value={rule.serviceType} onChange={e => updateRule(idx, 'serviceType', e.target.value)}>
                               {Object.keys(serviceSettings).map(k => <option key={k} value={k}>{serviceSettings[k].label}</option>)}
                             </select>
-                            <select className="input-field" style={{flex: '1 1 120px', padding: '4px'}} value={rule.pattern} onChange={e => updateRule(idx, 'pattern', e.target.value)}>
+                            <select className="input-field" disabled={!isAdmin} style={{flex: '1 1 120px', padding: '4px'}} value={rule.pattern} onChange={e => updateRule(idx, 'pattern', e.target.value)}>
                               <option value="everyOther">Every Other Week</option>
                               <option value="nthWeek">Specific Sunday</option>
                             </select>
                             {rule.pattern === 'everyOther' ? (
-                              <select className="input-field" style={{flex: '1 1 100px', padding: '4px'}} value={rule.startWeek} onChange={e => updateRule(idx, 'startWeek', e.target.value)}>
+                              <select className="input-field" disabled={!isAdmin} style={{flex: '1 1 100px', padding: '4px'}} value={rule.startWeek} onChange={e => updateRule(idx, 'startWeek', e.target.value)}>
                                 <option value="odd">Odd Weeks</option>
                                 <option value="even">Even Weeks</option>
                               </select>
                             ) : (
-                              <select className="input-field" style={{flex: '1 1 100px', padding: '4px'}} value={rule.nthWeek} onChange={e => updateRule(idx, 'nthWeek', parseInt(e.target.value))}>
+                              <select className="input-field" disabled={!isAdmin} style={{flex: '1 1 100px', padding: '4px'}} value={rule.nthWeek} onChange={e => updateRule(idx, 'nthWeek', parseInt(e.target.value))}>
                                 <option value="1">1st Sunday</option>
                                 <option value="2">2nd Sunday</option>
                                 <option value="3">3rd Sunday</option>
@@ -221,7 +229,7 @@ export default function MemberProfileModal({
                                 <option value="5">5th Sunday</option>
                               </select>
                             )}
-                            {!isReadOnly && <button onClick={() => removeRule(idx)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>}
+                            {isAdmin && <button onClick={() => removeRule(idx)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>}
                           </div>
                         ))}
                       </div>
@@ -234,10 +242,15 @@ export default function MemberProfileModal({
             {activeTab === 'service' && (
               <div>
                 <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Select categories for the Arranging Services tool.</p>
+                {!isAdmin && (
+                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#0369a1', marginBottom: '16px' }}>
+                    Service skill assignments are managed by your congregation's administrators.
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {skillOptions.map(skill => (
-                    <label key={skill} className="service-badge" style={{ background: (editingMember.serviceSkills || []).includes(skill) ? '#d1fae5' : '#f3f4f6', cursor: isReadOnly ? 'default' : 'pointer', padding: '8px 16px' }}>
-                      <input type="checkbox" disabled={isReadOnly} checked={(editingMember.serviceSkills || []).includes(skill)} onChange={e => {
+                    <label key={skill} className="service-badge" style={{ background: (editingMember.serviceSkills || []).includes(skill) ? '#d1fae5' : '#f3f4f6', cursor: !isAdmin ? 'default' : 'pointer', padding: '8px 16px' }}>
+                      <input type="checkbox" disabled={!isAdmin} checked={(editingMember.serviceSkills || []).includes(skill)} onChange={e => {
                         const skills = editingMember.serviceSkills || [];
                         updateField('serviceSkills', e.target.checked ? [...skills, skill] : skills.filter(s => s !== skill));
                       }} /> {skill}
@@ -288,14 +301,14 @@ export default function MemberProfileModal({
           </div>
 
           <div style={{ padding: '20px 32px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
-            {!isReadOnly && !isNewMember ? (
+            {isAdmin && !isNewMember ? (
               <button onClick={handleDelete} style={{ background: 'none', border: 'none', color: '#dc2626', fontWeight: '700', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Delete
               </button>
             ) : <div />}
             <div style={{ display: 'flex', gap: '12px' }}>
               <button className="btn-secondary" onClick={onClose}>Cancel</button>
-              {!isReadOnly && <button className="btn-primary" onClick={handleSave}>Save Profile</button>}
+              {canEdit && <button className="btn-primary" onClick={handleSave}>Save Profile</button>}
             </div>
           </div>
         </div>
