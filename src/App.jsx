@@ -296,6 +296,22 @@ export default function ChurchScheduleApp() {
         .actions-dropdown { position: absolute; top: 110%; right: 0; background: white; border: 1px solid #eee; borderRadius: 12px; width: 220px; z-index: 1000; boxShadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; }
         .dropdown-item { width: 100%; padding: 12px 16px; text-align: left; border: none; background: none; cursor: pointer; font-size: 14px; border-radius: 8px; color: #1e3a5f; font-weight: 500; display: flex; align-items: center; gap: 10px; }
         .dropdown-item:hover { background: #f3f4f6; }
+        .member-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .member-modal-wrap { width: 100%; max-width: 900px; max-height: 90vh; display: flex; padding: 0; overflow: hidden; }
+        .member-modal-sidebar { width: 300px; flex-shrink: 0; border-right: 1px solid #eee; padding: 24px; background: #fbfbfc; overflow-y: auto; }
+        .member-modal-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .member-modal-tabs { display: flex; border-bottom: 1px solid #eee; background: #fff; overflow-x: auto; }
+        .member-modal-tabs::-webkit-scrollbar { display: none; }
+        .member-modal-body { flex: 1; padding: 32px; overflow-y: auto; }
+        .member-modal-footer { padding: 20px 32px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #fff; flex-wrap: wrap; gap: 8px; }
+        @media (max-width: 640px) {
+          .member-modal-overlay { padding: 0; align-items: flex-end; }
+          .member-modal-wrap { flex-direction: column; max-width: 100%; max-height: 95dvh; border-radius: 20px 20px 0 0; }
+          .member-modal-sidebar { width: 100%; border-right: none; border-bottom: 1px solid #eee; padding: 16px; }
+          .member-modal-body { padding: 16px; }
+          .member-modal-footer { padding: 12px 16px; }
+          .nav-tab { padding: 12px 14px; font-size: 13px; white-space: nowrap; }
+        }
       `}</style>
 
       <header style={{ background: '#ffffff', padding: '16px 0', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 1000 }}>

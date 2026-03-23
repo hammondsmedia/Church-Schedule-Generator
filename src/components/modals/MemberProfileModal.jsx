@@ -137,11 +137,11 @@ export default function MemberProfileModal({
   const hiddenFields = editingMember.hiddenFields || {};
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-      <div className="card" style={{ width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', padding: 0, overflow: 'hidden' }}>
+    <div className="member-modal-overlay">
+      <div className="card member-modal-wrap">
 
         {/* SIDEBAR */}
-        <div style={{ width: '300px', borderRight: '1px solid #eee', padding: '24px', background: '#fbfbfc', overflowY: 'auto' }}>
+        <div className="member-modal-sidebar">
           <h3 style={{ margin: '0 0 20px 0' }}>About Person</h3>
 
           {/* Photo Upload */}
@@ -319,15 +319,15 @@ export default function MemberProfileModal({
         </div>
 
         {/* CONTENT */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', borderBottom: '1px solid #eee', background: '#fff' }}>
+        <div className="member-modal-content">
+          <div className="member-modal-tabs">
             <button className={`nav-tab ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>Overview</button>
             <button className={`nav-tab ${activeTab === 'family' ? 'active' : ''}`} onClick={() => setActiveTab('family')}>Family</button>
             <button className={`nav-tab ${activeTab === 'speaker' ? 'active' : ''}`} onClick={() => setActiveTab('speaker')}>Speaker Logic</button>
             <button className={`nav-tab ${activeTab === 'service' ? 'active' : ''}`} onClick={() => setActiveTab('service')}>Service Skills</button>
           </div>
 
-          <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+          <div className="member-modal-body">
             {activeTab === 'about' && (
               <div>
                 <h2>{editingMember.firstName} {editingMember.lastName}</h2>
@@ -581,7 +581,7 @@ export default function MemberProfileModal({
             )}
           </div>
 
-          <div style={{ padding: '20px 32px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
+          <div className="member-modal-footer">
             {isAdmin && !isNewMember ? (
               <button onClick={handleDelete} style={{ background: 'none', border: 'none', color: '#dc2626', fontWeight: '700', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Delete
