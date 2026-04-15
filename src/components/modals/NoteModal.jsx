@@ -2,10 +2,10 @@
 import React from 'react';
 
 const SERVICE_LABELS = {
-  sundayMorning:    { label: 'Sunday Morning',    color: '#1e40af', bg: '#dbeafe', emoji: '☀️' },
-  communion:        { label: 'Communion',          color: '#be185d', bg: '#fce7f3', emoji: '🍞' },
-  sundayEvening:    { label: 'Sunday Evening',     color: '#5b21b6', bg: '#ede9fe', emoji: '🌆' },
-  wednesdayEvening: { label: 'Wednesday Evening',  color: '#065f46', bg: '#d1fae5', emoji: '🌙' },
+  sundayMorning:    { label: 'Sunday Morning',   color: '#1e40af', bg: '#dbeafe' },
+  communion:        { label: 'Communion',         color: '#be185d', bg: '#fce7f3' },
+  sundayEvening:    { label: 'Sunday Evening',    color: '#5b21b6', bg: '#ede9fe' },
+  wednesdayEvening: { label: 'Wednesday Evening', color: '#065f46', bg: '#d1fae5' },
 };
 
 export default function NoteModal({
@@ -16,7 +16,7 @@ export default function NoteModal({
   if (!isOpen || !editingNote) return null;
 
   const isAdmin = ['owner', 'admin'].includes(userRole);
-  const serviceInfo = SERVICE_LABELS[editingNote.serviceType] || { label: editingNote.serviceType, color: 'var(--text)', bg: 'var(--border-light)', emoji: '📋' };
+  const serviceInfo = SERVICE_LABELS[editingNote.serviceType] || { label: editingNote.serviceType, color: 'var(--text)', bg: 'var(--border-light)' };
 
   // Parse date for display
   let dateDisplay = editingNote.date || '';
@@ -33,19 +33,19 @@ export default function NoteModal({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
+                display: 'inline-flex', alignItems: 'center',
                 padding: '4px 10px', borderRadius: 99,
                 background: serviceInfo.bg, color: serviceInfo.color,
                 fontSize: 12, fontWeight: 700,
               }}>
-                {serviceInfo.emoji} {serviceInfo.label}
+                {serviceInfo.label}
               </span>
             </div>
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text)' }}>
               {getSpeakerName(editingNote.speakerId)}
             </h3>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-3)' }}>
-              📅 {dateDisplay}
+              {dateDisplay}
             </p>
           </div>
           <button
@@ -89,14 +89,14 @@ export default function NoteModal({
                   onClose();
                 }}
               >
-                🔄 Swap Speaker
+                Swap Speaker
               </button>
               <button
                 className="btn-danger"
                 style={{ justifyContent: 'center' }}
                 onClick={() => handleDeleteSlot(editingNote.slotKey)}
               >
-                🗑️ Remove Assignment
+                Remove Assignment
               </button>
             </>
           )}

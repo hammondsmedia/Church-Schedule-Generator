@@ -7,7 +7,6 @@ const TEMPLATES = {
   WED_NIGHT: {
     id: 'WED_NIGHT',
     name: 'Wednesday Night',
-    emoji: '🌙',
     slots: [
       { id: 'ann_open',       label: 'Opening Announcements',  skill: 'Opening Announcements' },
       { id: 'opening_prayer', label: 'Opening Prayer',          skill: 'Prayers' },
@@ -20,7 +19,6 @@ const TEMPLATES = {
   SUN_MORNING: {
     id: 'SUN_MORNING',
     name: 'Sunday Morning',
-    emoji: '☀️',
     slots: [
       { id: 'ann_open',       label: 'Opening Announcements',    skill: 'Opening Announcements' },
       { id: 'opening_prayer', label: 'Opening Prayer',            skill: 'Prayers' },
@@ -51,15 +49,6 @@ function extractWriteIns(assignments) {
   return writeIns;
 }
 
-const SKILL_ICON = {
-  'Opening Announcements': '📢',
-  'Closing Announcements': '📢',
-  'Prayers': '🙏',
-  'Songs': '🎵',
-  'Teacher': '📖',
-  'Communion': '🍞',
-  'Contribution/Collection': '🤝',
-};
 
 export default function ServicesTab({ members = [], schedule = {} }) {
   const [templateId, setTemplateId] = useState('SUN_MORNING');
@@ -117,7 +106,7 @@ export default function ServicesTab({ members = [], schedule = {} }) {
                 className={`nav-tab${templateId === t.id ? ' active' : ''}`}
                 onClick={() => setTemplateId(t.id)}
               >
-                {t.emoji} {t.name}
+                {t.name}
               </button>
             ))}
           </div>
@@ -140,7 +129,7 @@ export default function ServicesTab({ members = [], schedule = {} }) {
               <span style={{ color: assignedCount === totalSlots ? 'var(--success)' : 'var(--text)' }}>{assignedCount}</span>/{totalSlots} assigned
             </div>
             <button className="btn-primary" onClick={saveCurrentPlan}>
-              💾 Save Plan
+              Save Plan
             </button>
           </div>
         </div>
@@ -167,7 +156,6 @@ export default function ServicesTab({ members = [], schedule = {} }) {
           const isWriteIn = currentValue === WRITE_IN_VALUE || currentValue.startsWith(WRITE_IN_PREFIX);
           const selectValue = isWriteIn ? WRITE_IN_VALUE : currentValue;
           const isAssigned = !!currentValue && currentValue !== WRITE_IN_VALUE;
-          const icon = SKILL_ICON[slot.skill] || '📋';
 
           return (
             <div
@@ -182,20 +170,12 @@ export default function ServicesTab({ members = [], schedule = {} }) {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: 8,
-                  background: isAssigned ? 'var(--primary-xlight)' : 'var(--border-light)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 15, flexShrink: 0,
-                }}>
-                  {icon}
-                </div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>{slot.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 500 }}>Slot {index + 1}</div>
                 </div>
                 {isAssigned && (
-                  <div style={{ marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', flexShrink: 0 }} />
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', flexShrink: 0 }} />
                 )}
               </div>
 
@@ -209,7 +189,7 @@ export default function ServicesTab({ members = [], schedule = {} }) {
                 {options.map(m => (
                   <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>
                 ))}
-                <option value={WRITE_IN_VALUE}>✏️ Write In / Visitor…</option>
+                <option value={WRITE_IN_VALUE}>Write In / Visitor…</option>
               </select>
 
               {isWriteIn && (

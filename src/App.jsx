@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import logoIcon from './assets/logo-icon.svg';
 
 // Modular Logic & Services
 import { FIREBASE_CONFIG, loadFirebaseScripts } from './services/firebase';
@@ -321,9 +320,9 @@ export default function ChurchScheduleApp() {
 
   // ── NAV TABS config ────────────────────────────────────────────────────────
   const navTabs = [
-    { id: 'directory', icon: '👥', label: 'Directory' },
-    { id: 'calendar',  icon: '📅', label: 'Teaching Calendar' },
-    { id: 'services',  icon: '🛠️', label: 'Service Plans' },
+    { id: 'directory', label: 'Directory' },
+    { id: 'calendar',  label: 'Teaching Calendar' },
+    { id: 'services',  label: 'Service Plans' },
   ];
 
   return (
@@ -334,7 +333,6 @@ export default function ChurchScheduleApp() {
         <div className="app-header-inner">
           {/* Logo */}
           <div className="app-logo" onClick={() => setCurrentPage('dashboard')}>
-            <img src={logoIcon} alt="Logo" style={{ height: 32 }} />
             <span className="app-logo-name">Collab<span>App</span></span>
           </div>
 
@@ -357,16 +355,16 @@ export default function ChurchScheduleApp() {
             {showProfileMenu && (
               <div className="actions-dropdown">
                 <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">
-                  👤 My Profile
+                  My Profile
                 </button>
                 {['owner', 'admin'].includes(userRole) && (
                   <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">
-                    ⚙️ Settings
+                    Settings
                   </button>
                 )}
                 <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
                 <button onClick={() => auth.current.signOut()} className="dropdown-item danger">
-                  🚪 Sign Out
+                  Sign Out
                 </button>
               </div>
             )}
@@ -433,7 +431,7 @@ export default function ChurchScheduleApp() {
                   {/* Actions dropdown */}
                   <div style={{ position: 'relative' }} ref={actionsRef}>
                     <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>
-                      ⚡ Actions
+                      Actions
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="6 9 12 15 18 9"/>
                       </svg>
@@ -441,20 +439,20 @@ export default function ChurchScheduleApp() {
                     {showActions && (
                       <div className="actions-dropdown">
                         <button className="dropdown-item" onClick={() => { exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName); setShowActions(false); }}>
-                          📄 Export PDF
+                          Export PDF
                         </button>
                         <button className="dropdown-item" onClick={() => { exportToCSV(selectedMonth, schedule, members, serviceSettings, getSpeakerName); setShowActions(false); }}>
-                          📊 Export CSV
+                          Export CSV
                         </button>
                         {['owner', 'admin'].includes(userRole) && (
                           <>
                             <button className="dropdown-item" onClick={() => { fileInputRef.current.click(); setShowActions(false); }}>
-                              📥 Import CSV
+                              Import CSV
                             </button>
                             <input type="file" ref={fileInputRef} onChange={handleImportCSV} style={{ display: 'none' }} />
                             <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
                             <button className="dropdown-item danger" onClick={handleClearMonth}>
-                              🗑️ Clear Month
+                              Clear Month
                             </button>
                           </>
                         )}
@@ -480,7 +478,6 @@ export default function ChurchScheduleApp() {
                     className={`nav-tab${view === tab.id ? ' active' : ''}`}
                     onClick={() => setView(tab.id)}
                   >
-                    <span>{tab.icon}</span>
                     {tab.label}
                   </button>
                 ))}
@@ -514,7 +511,7 @@ export default function ChurchScheduleApp() {
                 {tab.id === 'directory' && <IconUsers />}
                 {tab.id === 'calendar'  && <IconCalendar />}
                 {tab.id === 'services'  && <IconClipboard />}
-                {tab.label.split(' ')[0]}
+                {tab.id === 'directory' ? 'Directory' : tab.id === 'calendar' ? 'Calendar' : 'Services'}
                 <div className="bottom-nav-dot" />
               </button>
             ))}
@@ -566,7 +563,6 @@ export default function ChurchScheduleApp() {
 
             {members.filter(m => m.isSpeaker && m.availability?.[assigningSlot.serviceType]).length === 0 ? (
               <div className="empty-state" style={{ padding: '30px 0' }}>
-                <div className="empty-state-icon">😔</div>
                 <p>No available speakers for this service type.</p>
               </div>
             ) : (

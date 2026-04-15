@@ -168,7 +168,7 @@ export default function MemberProfileModal({
                   cursor: 'pointer', border: '2px solid var(--surface)',
                   fontSize: 11,
                 }}>
-                  {uploading ? '…' : '📷'}
+                  {uploading ? '…' : '+'}
                 </label>
               )}
             </div>
@@ -306,7 +306,7 @@ export default function MemberProfileModal({
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
                   {editingMember.isSpeaker && (
-                    <span className="chip chip-purple">🎙️ Speaker</span>
+                    <span className="chip chip-purple">Speaker</span>
                   )}
                   {editingMember.leadershipRole && (
                     <span className="chip chip-blue">{editingMember.leadershipRole}</span>
@@ -315,7 +315,7 @@ export default function MemberProfileModal({
                     <span key={skill} className="chip chip-green">{skill}</span>
                   ))}
                   {currentFamily && (
-                    <span className="chip chip-gray">🏠 {currentFamily.name}</span>
+                    <span className="chip chip-gray">{currentFamily.name}</span>
                   )}
                 </div>
 
@@ -533,11 +533,11 @@ export default function MemberProfileModal({
                         {householdMembers.map(m => (
                           canManageFamily ? (
                             <button key={m.id} className="btn-secondary" style={{ fontSize: 13, padding: '6px 12px', borderRadius: 'var(--radius-full)' }} onClick={() => setEditingMember(m)}>
-                              ✏️ {m.firstName} {m.lastName}
+                              {m.firstName} {m.lastName}
                             </button>
                           ) : (
                             <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 'var(--radius-full)', background: 'var(--border-light)', border: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text-2)' }}>
-                              👤 {m.firstName} {m.lastName}
+                              {m.firstName} {m.lastName}
                             </span>
                           )
                         ))}
