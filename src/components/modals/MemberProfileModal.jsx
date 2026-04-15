@@ -19,29 +19,25 @@ export default function MemberProfileModal({
   const isAdmin = ['owner', 'admin'].includes(userRole);
   const isOwnProfile = user?.uid === editingMember.id;
 
-  // Determine if the current logged-in user is a parent/spouse in the same family as the profile being viewed
   const currentUserMember = (members || []).find(m => m.id === user?.uid);
   const currentUserCanEditFamily = ['parent', 'spouse'].includes(currentUserMember?.familyRole);
-  const isSameFamilyMember = !isOwnProfile &&
-    currentUserMember?.familyId &&
-    currentUserMember.familyId === editingMember.familyId;
+  const isSameFamilyMember = !isOwnProfile
+    && currentUserMember?.familyId
+    && currentUserMember.familyId === editingMember.familyId;
   const canEdit = isAdmin || isOwnProfile || (currentUserCanEditFamily && !!isSameFamilyMember);
   const isReadOnly = !canEdit;
 
-  // Parents, spouses, and admins can manage family (add members, send invites)
-  const canManageFamily = isAdmin || (isOwnProfile && ['parent', 'spouse'].includes(editingMember.familyRole)) ||
-    (currentUserCanEditFamily && !!currentUserMember?.familyId);
+  const canManageFamily = isAdmin
+    || (isOwnProfile && ['parent', 'spouse'].includes(editingMember.familyRole))
+    || (currentUserCanEditFamily && !!currentUserMember?.familyId);
 
   const isNewMember = !members.find(m => m.id === editingMember.id);
 
   const handleSave = async () => {
     if (!canEdit) return;
-    let updatedMembers;
-    if (!isNewMember) {
-      updatedMembers = members.map(m => m.id === editingMember.id ? editingMember : m);
-    } else {
-      updatedMembers = [...members, editingMember];
-    }
+    const updatedMembers = isNewMember
+      ? [...members, editingMember]
+      : members.map(m => m.id === editingMember.id ? editingMember : m);
     setMembers(updatedMembers);
     if (onSaveProfile) await onSaveProfile(updatedMembers);
     onClose();
@@ -59,14 +55,14 @@ export default function MemberProfileModal({
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file || !storage) return alert("Storage not available.");
+    if (!file || !storage) return alert('Storage not available.');
     setUploading(true);
     try {
       const ref = storage.ref(`profile_pics/${editingMember.id}`);
       await ref.put(file);
       const url = await ref.getDownloadURL();
       setEditingMember({ ...editingMember, photoURL: url });
-    } catch (err) { alert("Upload failed."); }
+    } catch (err) { alert('Upload failed.'); }
     setUploading(false);
   };
 
@@ -84,13 +80,11 @@ export default function MemberProfileModal({
     const rules = editingMember.repeatRules || [];
     updateField('repeatRules', [...rules, { serviceType: 'sundayMorning', pattern: 'everyOther', startWeek: 'odd' }]);
   };
-
   const removeRule = (index) => {
     const rules = [...(editingMember.repeatRules || [])];
     rules.splice(index, 1);
     updateField('repeatRules', rules);
   };
-
   const updateRule = (index, field, value) => {
     const rules = [...(editingMember.repeatRules || [])];
     rules[index] = { ...rules[index], [field]: value };
@@ -107,11 +101,10 @@ export default function MemberProfileModal({
 
   const handleAddFamilyMember = () => {
     setEditingMember({
-      id: Date.now(),
-      firstName: '', lastName: '',
+      id: Date.now(), firstName: '', lastName: '',
       isSpeaker: false, serviceSkills: [], leadershipRole: '',
       familyId: editingMember.familyId,
-      availability: {}, repeatRules: [], hasAccount: false
+      availability: {}, repeatRules: [], hasAccount: false,
     });
   };
 
@@ -121,7 +114,7 @@ export default function MemberProfileModal({
     try {
       await generateInviteLink(inviteEmail.trim(), 'member');
       setInviteEmail('');
-    } catch (err) { alert("Failed to send invite."); }
+    } catch (err) { alert('Failed to send invite.'); }
     setInviteSending(false);
   };
 
@@ -129,52 +122,73 @@ export default function MemberProfileModal({
   const householdMembers = (members || []).filter(m => m.familyId === editingMember.familyId && m.id !== editingMember.id);
 
   const skillOptions = [
-    "Teacher", "Prayers", "Songs", "Contribution/Collection",
-    "Communion", "Opening Announcements", "Closing Announcements"
+    'Teacher', 'Prayers', 'Songs', 'Contribution/Collection',
+    'Communion', 'Opening Announcements', 'Closing Announcements',
   ];
 
   const initials = `${editingMember.firstName?.charAt(0) || ''}${editingMember.lastName?.charAt(0) || ''}`.toUpperCase();
   const hiddenFields = editingMember.hiddenFields || {};
 
+  const tabs = [
+    { id: 'about',   label: 'Overview' },
+    { id: 'speaker', label: 'Speaker Logic' },
+    { id: 'service', label: 'Service Skills' },
+    { id: 'family',  label: 'Family' },
+  ];
+
   return (
     <div className="member-modal-overlay">
       <div className="card member-modal-wrap">
 
-        {/* SIDEBAR */}
+        {/* ── SIDEBAR ── */}
         <div className="member-modal-sidebar">
-          <h3 style={{ margin: '0 0 20px 0' }}>About Person</h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+              Member Profile
+            </h3>
+            <button className="btn-ghost" onClick={onClose} style={{ padding: '4px 7px', borderRadius: 'var(--radius-sm)', fontSize: 16, lineHeight: 1 }}>✕</button>
+          </div>
 
-          {/* Photo Upload */}
-          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          {/* Photo */}
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <div style={{ position: 'relative', display: 'inline-block' }}>
               {editingMember.photoURL ? (
-                <img src={editingMember.photoURL} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #e5e7eb' }} alt="Profile" />
+                <img src={editingMember.photoURL} style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--border)' }} alt="Profile" />
               ) : (
-                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#1e3a5f', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '800' }}>
+                <div className="avatar-circle" style={{ width: 72, height: 72, fontSize: 24 }}>
                   {initials || '?'}
                 </div>
               )}
               {canEdit && (
-                <label htmlFor="member-photo-upload" style={{ position: 'absolute', bottom: '0px', right: '0px', background: '#4b5563', color: 'white', width: '26px', height: '26px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px solid #fff', fontSize: '12px' }}>
+                <label htmlFor="member-photo-upload" style={{
+                  position: 'absolute', bottom: 0, right: 0,
+                  width: 24, height: 24, borderRadius: '50%',
+                  background: 'var(--text)', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', border: '2px solid var(--surface)',
+                  fontSize: 11,
+                }}>
                   {uploading ? '…' : '📷'}
                 </label>
               )}
             </div>
             <input type="file" id="member-photo-upload" ref={photoInputRef} style={{ display: 'none' }} onChange={handlePhotoUpload} accept="image/*" />
-            {uploading && <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Uploading...</div>}
           </div>
 
-          <div style={{ display: 'grid', gap: '10px' }}>
+          {/* Fields */}
+          <div style={{ display: 'grid', gap: 10 }}>
+            {[
+              { label: 'First Name', field: 'firstName', type: 'text' },
+              { label: 'Last Name',  field: 'lastName',  type: 'text' },
+            ].map(({ label, field, type }) => (
+              <div key={field}>
+                <label className="form-label">{label}</label>
+                <input className="input-field" type={type} disabled={isReadOnly} value={editingMember[field] || ''} onChange={e => updateField(field, e.target.value)} />
+              </div>
+            ))}
+
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>First Name</label>
-              <input className="input-field" disabled={isReadOnly} value={editingMember.firstName || ''} onChange={e => updateField('firstName', e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Last Name</label>
-              <input className="input-field" disabled={isReadOnly} value={editingMember.lastName || ''} onChange={e => updateField('lastName', e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Leadership Role</label>
+              <label className="form-label">Leadership Role</label>
               <select className="input-field" disabled={!isAdmin} value={editingMember.leadershipRole || ''} onChange={e => updateField('leadershipRole', e.target.value)}>
                 <option value="">None</option>
                 <option value="Elder">Elder</option>
@@ -183,134 +197,78 @@ export default function MemberProfileModal({
                 <option value="Teacher">Teacher</option>
               </select>
             </div>
+
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Gender</label>
+              <label className="form-label">Gender</label>
               <select className="input-field" disabled={isReadOnly} value={editingMember.gender || ''} onChange={e => updateField('gender', e.target.value)}>
                 <option value="">— Not Set —</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
               </select>
             </div>
+
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Birthday</label>
+              <label className="form-label">Birthday</label>
               <input className="input-field" type="date" disabled={isReadOnly} value={editingMember.birthday || ''} onChange={e => updateField('birthday', e.target.value)} />
             </div>
+
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Wedding Anniversary</label>
+              <label className="form-label">Wedding Anniversary</label>
               <input className="input-field" type="date" disabled={isReadOnly} value={editingMember.anniversary || ''} onChange={e => updateField('anniversary', e.target.value)} />
             </div>
+
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Phone</label>
+              <label className="form-label">Phone</label>
               <input className="input-field" disabled={isReadOnly} value={editingMember.phone || ''} onChange={e => updateField('phone', e.target.value)} />
             </div>
+
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Email</label>
+              <label className="form-label">Email</label>
               <input className="input-field" type="email" disabled={isReadOnly} value={editingMember.email || ''} onChange={e => updateField('email', e.target.value)} />
             </div>
+
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Address 1</label>
+              <label className="form-label">Address</label>
               <input className="input-field" disabled={isReadOnly} value={editingMember.address1 || ''} onChange={e => updateField('address1', e.target.value)} placeholder="Street address" />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Address 2</label>
-              <input className="input-field" disabled={isReadOnly} value={editingMember.address2 || ''} onChange={e => updateField('address2', e.target.value)} placeholder="Apt, suite, unit, etc." />
+              <input className="input-field" disabled={isReadOnly} value={editingMember.address2 || ''} onChange={e => updateField('address2', e.target.value)} placeholder="Apt, suite, unit…" />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>City</label>
-              <input className="input-field" disabled={isReadOnly} value={editingMember.city || ''} onChange={e => updateField('city', e.target.value)} />
+              <input className="input-field" disabled={isReadOnly} value={editingMember.city || ''} onChange={e => updateField('city', e.target.value)} placeholder="City" />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <div>
-                <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>State / Region</label>
-                <select className="input-field" disabled={isReadOnly} value={editingMember.state || ''} onChange={e => updateField('state', e.target.value)}>
-                  <option value="">—</option>
-                  <option value="AL">AL — Alabama</option>
-                  <option value="AK">AK — Alaska</option>
-                  <option value="AZ">AZ — Arizona</option>
-                  <option value="AR">AR — Arkansas</option>
-                  <option value="CA">CA — California</option>
-                  <option value="CO">CO — Colorado</option>
-                  <option value="CT">CT — Connecticut</option>
-                  <option value="DE">DE — Delaware</option>
-                  <option value="DC">DC — District of Columbia</option>
-                  <option value="FL">FL — Florida</option>
-                  <option value="GA">GA — Georgia</option>
-                  <option value="HI">HI — Hawaii</option>
-                  <option value="ID">ID — Idaho</option>
-                  <option value="IL">IL — Illinois</option>
-                  <option value="IN">IN — Indiana</option>
-                  <option value="IA">IA — Iowa</option>
-                  <option value="KS">KS — Kansas</option>
-                  <option value="KY">KY — Kentucky</option>
-                  <option value="LA">LA — Louisiana</option>
-                  <option value="ME">ME — Maine</option>
-                  <option value="MD">MD — Maryland</option>
-                  <option value="MA">MA — Massachusetts</option>
-                  <option value="MI">MI — Michigan</option>
-                  <option value="MN">MN — Minnesota</option>
-                  <option value="MS">MS — Mississippi</option>
-                  <option value="MO">MO — Missouri</option>
-                  <option value="MT">MT — Montana</option>
-                  <option value="NE">NE — Nebraska</option>
-                  <option value="NV">NV — Nevada</option>
-                  <option value="NH">NH — New Hampshire</option>
-                  <option value="NJ">NJ — New Jersey</option>
-                  <option value="NM">NM — New Mexico</option>
-                  <option value="NY">NY — New York</option>
-                  <option value="NC">NC — North Carolina</option>
-                  <option value="ND">ND — North Dakota</option>
-                  <option value="OH">OH — Ohio</option>
-                  <option value="OK">OK — Oklahoma</option>
-                  <option value="OR">OR — Oregon</option>
-                  <option value="PA">PA — Pennsylvania</option>
-                  <option value="RI">RI — Rhode Island</option>
-                  <option value="SC">SC — South Carolina</option>
-                  <option value="SD">SD — South Dakota</option>
-                  <option value="TN">TN — Tennessee</option>
-                  <option value="TX">TX — Texas</option>
-                  <option value="UT">UT — Utah</option>
-                  <option value="VT">VT — Vermont</option>
-                  <option value="VA">VA — Virginia</option>
-                  <option value="WA">WA — Washington</option>
-                  <option value="WV">WV — West Virginia</option>
-                  <option value="WI">WI — Wisconsin</option>
-                  <option value="WY">WY — Wyoming</option>
-                  <option value="AS">AS — American Samoa</option>
-                  <option value="GU">GU — Guam</option>
-                  <option value="MP">MP — Northern Mariana Islands</option>
-                  <option value="PR">PR — Puerto Rico</option>
-                  <option value="VI">VI — U.S. Virgin Islands</option>
+                <select className="input-field" style={{ fontSize: 12 }} disabled={isReadOnly} value={editingMember.state || ''} onChange={e => updateField('state', e.target.value)}>
+                  <option value="">State</option>
+                  {['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','AS','GU','MP','PR','VI'].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase' }}>Zip Code</label>
-                <input className="input-field" disabled={isReadOnly} value={editingMember.zip || ''} onChange={e => updateField('zip', e.target.value)} />
+                <input className="input-field" disabled={isReadOnly} value={editingMember.zip || ''} onChange={e => updateField('zip', e.target.value)} placeholder="Zip" />
               </div>
             </div>
 
-            {/* Privacy Controls — only shown to the profile owner or admins */}
+            {/* Privacy controls */}
             {(isOwnProfile || isAdmin) && (
-              <div style={{ borderTop: '1px solid #eee', paddingTop: '12px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 800, color: '#999', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                  Hide from Directory
-                </label>
-                <div style={{ display: 'grid', gap: '6px' }}>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <label className="form-label" style={{ marginBottom: 8 }}>Hide from Directory</label>
+                <div style={{ display: 'grid', gap: 6 }}>
                   {[
-                    { key: 'phone', label: 'Phone number' },
-                    { key: 'email', label: 'Email address' },
+                    { key: 'phone',   label: 'Phone number' },
+                    { key: 'email',   label: 'Email address' },
                     { key: 'address', label: 'Home address' },
                   ].map(({ key, label }) => (
-                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#4b5563', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={!!hiddenFields[key]}
-                        onChange={() => toggleHiddenField(key)}
-                      />
+                    <label key={key} className="toggle-label" style={{ fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!hiddenFields[key]} onChange={() => toggleHiddenField(key)} />
                       {label}
                     </label>
                   ))}
                 </div>
-                <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '6px', marginBottom: 0 }}>
+                <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '6px 0 0' }}>
                   Hidden fields are only visible to admins.
                 </p>
               </div>
@@ -318,73 +276,136 @@ export default function MemberProfileModal({
           </div>
         </div>
 
-        {/* CONTENT */}
+        {/* ── CONTENT ── */}
         <div className="member-modal-content">
+          {/* Tabs */}
           <div className="member-modal-tabs">
-            <button className={`nav-tab ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>Overview</button>
-            <button className={`nav-tab ${activeTab === 'family' ? 'active' : ''}`} onClick={() => setActiveTab('family')}>Family</button>
-            <button className={`nav-tab ${activeTab === 'speaker' ? 'active' : ''}`} onClick={() => setActiveTab('speaker')}>Speaker Logic</button>
-            <button className={`nav-tab ${activeTab === 'service' ? 'active' : ''}`} onClick={() => setActiveTab('service')}>Service Skills</button>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                className={`member-modal-tab${activeTab === t.id ? ' active' : ''}`}
+                onClick={() => setActiveTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
+          {/* Body */}
           <div className="member-modal-body">
+
+            {/* ── OVERVIEW ── */}
             {activeTab === 'about' && (
               <div>
-                <h2>{editingMember.firstName} {editingMember.lastName}</h2>
-                <p style={{color: '#666'}}>Manage scheduling rules and qualifications.</p>
+                <h2 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em', color: 'var(--text)' }}>
+                  {editingMember.firstName || 'New'} {editingMember.lastName || 'Member'}
+                </h2>
+                <p style={{ color: 'var(--text-3)', margin: 0, fontSize: 14 }}>
+                  Use the sidebar to edit personal information. Switch tabs to configure scheduling, skills, and family.
+                </p>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
+                  {editingMember.isSpeaker && (
+                    <span className="chip chip-purple">🎙️ Speaker</span>
+                  )}
+                  {editingMember.leadershipRole && (
+                    <span className="chip chip-blue">{editingMember.leadershipRole}</span>
+                  )}
+                  {(editingMember.serviceSkills || []).map(skill => (
+                    <span key={skill} className="chip chip-green">{skill}</span>
+                  ))}
+                  {currentFamily && (
+                    <span className="chip chip-gray">🏠 {currentFamily.name}</span>
+                  )}
+                </div>
+
+                {isReadOnly && (
+                  <div className="info-box info" style={{ marginTop: 20 }}>
+                    You're viewing this profile in read-only mode.
+                  </div>
+                )}
               </div>
             )}
 
+            {/* ── SPEAKER LOGIC ── */}
             {activeTab === 'speaker' && (
               <div>
                 {!isAdmin && (
-                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#0369a1', marginBottom: '20px' }}>
+                  <div className="info-box info" style={{ marginBottom: 20, fontSize: 13 }}>
                     Speaker scheduling settings are managed by your congregation's administrators.
                   </div>
                 )}
-                <label style={{ display: 'flex', gap: '12px', fontWeight: 'bold', marginBottom: '24px', alignItems: 'center' }}>
-                  <input type="checkbox" disabled={!isAdmin} checked={editingMember.isSpeaker} onChange={e => updateField('isSpeaker', e.target.checked)} />
-                  Enable for Schedule Generator
+
+                <label className="toggle-label" style={{ marginBottom: 20 }}>
+                  <input type="checkbox" disabled={!isAdmin} checked={editingMember.isSpeaker || false} onChange={e => updateField('isSpeaker', e.target.checked)} />
+                  <span style={{ fontWeight: 700 }}>Enable for Schedule Generator</span>
                 </label>
 
                 {editingMember.isSpeaker && (
-                  <div style={{ display: 'grid', gap: '24px' }}>
+                  <div style={{ display: 'grid', gap: 24 }}>
+                    {/* Availability */}
                     <div>
-                      <strong style={{ display: 'block', marginBottom: '12px' }}>Weekly Availability</strong>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      <p style={{ margin: '0 0 12px', fontWeight: 700, fontSize: 14, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+                        Weekly Availability
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                         {Object.keys(serviceSettings).map(k => (
-                          <label key={k} className="service-badge" style={{ background: editingMember.availability?.[k] ? '#dbeafe' : '#f3f4f6', cursor: !isAdmin ? 'default' : 'pointer' }}>
-                            <input type="checkbox" disabled={!isAdmin} checked={editingMember.availability?.[k] || false} onChange={e => {
-                              const avail = editingMember.availability || {};
-                              updateField('availability', { ...avail, [k]: e.target.checked });
-                            }} /> {serviceSettings[k].label}
+                          <label key={k} style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '8px 14px', borderRadius: 'var(--radius-full)',
+                            border: `1.5px solid ${editingMember.availability?.[k] ? 'var(--primary-light)' : 'var(--border)'}`,
+                            background: editingMember.availability?.[k] ? 'var(--primary-xlight)' : 'var(--surface-2)',
+                            cursor: !isAdmin ? 'default' : 'pointer',
+                            fontSize: 13, fontWeight: 600,
+                            color: editingMember.availability?.[k] ? 'var(--primary-dark)' : 'var(--text-2)',
+                            transition: 'all 150ms ease',
+                          }}>
+                            <input
+                              type="checkbox" disabled={!isAdmin}
+                              checked={editingMember.availability?.[k] || false}
+                              onChange={e => {
+                                const avail = editingMember.availability || {};
+                                updateField('availability', { ...avail, [k]: e.target.checked });
+                              }}
+                            />
+                            {serviceSettings[k].label}
                           </label>
                         ))}
                       </div>
                     </div>
 
-                    <div style={{ borderTop: '1px solid #eee', paddingTop: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <strong>Repeat Rules</strong>
-                        {isAdmin && <button className="btn-secondary" style={{fontSize: '11px', padding: '4px 8px'}} onClick={addRepeatRule}>+ Add Rule</button>}
+                    {/* Repeat rules */}
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+                          Repeat Rules
+                        </p>
+                        {isAdmin && (
+                          <button className="btn-secondary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={addRepeatRule}>
+                            + Add Rule
+                          </button>
+                        )}
                       </div>
-                      <div style={{ display: 'grid', gap: '12px' }}>
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        {(editingMember.repeatRules || []).length === 0 && (
+                          <p style={{ fontSize: 13, color: 'var(--text-3)', margin: 0 }}>No rules set — speaker is available every applicable week.</p>
+                        )}
                         {(editingMember.repeatRules || []).map((rule, idx) => (
-                          <div key={idx} style={{ background: '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid #eee', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <select className="input-field" disabled={!isAdmin} style={{flex: '1 1 120px', padding: '4px'}} value={rule.serviceType} onChange={e => updateRule(idx, 'serviceType', e.target.value)}>
+                          <div key={idx} style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <select className="input-field" disabled={!isAdmin} style={{ flex: '1 1 120px', fontSize: 13 }} value={rule.serviceType} onChange={e => updateRule(idx, 'serviceType', e.target.value)}>
                               {Object.keys(serviceSettings).map(k => <option key={k} value={k}>{serviceSettings[k].label}</option>)}
                             </select>
-                            <select className="input-field" disabled={!isAdmin} style={{flex: '1 1 120px', padding: '4px'}} value={rule.pattern} onChange={e => updateRule(idx, 'pattern', e.target.value)}>
+                            <select className="input-field" disabled={!isAdmin} style={{ flex: '1 1 140px', fontSize: 13 }} value={rule.pattern} onChange={e => updateRule(idx, 'pattern', e.target.value)}>
                               <option value="everyOther">Every Other Week</option>
                               <option value="nthWeek">Specific Sunday</option>
                             </select>
                             {rule.pattern === 'everyOther' ? (
-                              <select className="input-field" disabled={!isAdmin} style={{flex: '1 1 100px', padding: '4px'}} value={rule.startWeek} onChange={e => updateRule(idx, 'startWeek', e.target.value)}>
+                              <select className="input-field" disabled={!isAdmin} style={{ flex: '1 1 100px', fontSize: 13 }} value={rule.startWeek} onChange={e => updateRule(idx, 'startWeek', e.target.value)}>
                                 <option value="odd">Odd Weeks</option>
                                 <option value="even">Even Weeks</option>
                               </select>
                             ) : (
-                              <select className="input-field" disabled={!isAdmin} style={{flex: '1 1 100px', padding: '4px'}} value={rule.nthWeek} onChange={e => updateRule(idx, 'nthWeek', parseInt(e.target.value))}>
+                              <select className="input-field" disabled={!isAdmin} style={{ flex: '1 1 100px', fontSize: 13 }} value={rule.nthWeek} onChange={e => updateRule(idx, 'nthWeek', parseInt(e.target.value))}>
                                 <option value="1">1st Sunday</option>
                                 <option value="2">2nd Sunday</option>
                                 <option value="3">3rd Sunday</option>
@@ -392,7 +413,11 @@ export default function MemberProfileModal({
                                 <option value="5">5th Sunday</option>
                               </select>
                             )}
-                            {isAdmin && <button onClick={() => removeRule(idx)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>}
+                            {isAdmin && (
+                              <button onClick={() => removeRule(idx)} className="btn-ghost" style={{ color: 'var(--error)', padding: '4px 8px', fontSize: 16 }}>
+                                ✕
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -402,81 +427,84 @@ export default function MemberProfileModal({
               </div>
             )}
 
+            {/* ── SERVICE SKILLS ── */}
             {activeTab === 'service' && (
               <div>
-                <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Select categories for the Arranging Services tool.</p>
+                <p style={{ color: 'var(--text-3)', fontSize: 14, margin: '0 0 16px', lineHeight: 1.6 }}>
+                  Select categories this member can fill in the Service Plans tool.
+                </p>
                 {!isAdmin && (
-                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#0369a1', marginBottom: '16px' }}>
+                  <div className="info-box info" style={{ marginBottom: 16, fontSize: 13 }}>
                     Service skill assignments are managed by your congregation's administrators.
                   </div>
                 )}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {skillOptions.map(skill => (
-                    <label key={skill} className="service-badge" style={{ background: (editingMember.serviceSkills || []).includes(skill) ? '#d1fae5' : '#f3f4f6', cursor: !isAdmin ? 'default' : 'pointer', padding: '8px 16px' }}>
-                      <input type="checkbox" disabled={!isAdmin} checked={(editingMember.serviceSkills || []).includes(skill)} onChange={e => {
-                        const skills = editingMember.serviceSkills || [];
-                        updateField('serviceSkills', e.target.checked ? [...skills, skill] : skills.filter(s => s !== skill));
-                      }} /> {skill}
-                    </label>
-                  ))}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {skillOptions.map(skill => {
+                    const isChecked = (editingMember.serviceSkills || []).includes(skill);
+                    return (
+                      <label key={skill} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                        padding: '9px 16px', borderRadius: 'var(--radius-full)',
+                        border: `1.5px solid ${isChecked ? 'var(--success-border)' : 'var(--border)'}`,
+                        background: isChecked ? 'var(--success-bg)' : 'var(--surface-2)',
+                        cursor: !isAdmin ? 'default' : 'pointer',
+                        fontSize: 13, fontWeight: 600,
+                        color: isChecked ? '#065f46' : 'var(--text-2)',
+                        transition: 'all 150ms ease',
+                      }}>
+                        <input
+                          type="checkbox" disabled={!isAdmin}
+                          checked={isChecked}
+                          onChange={e => {
+                            const skills = editingMember.serviceSkills || [];
+                            updateField('serviceSkills', e.target.checked ? [...skills, skill] : skills.filter(s => s !== skill));
+                          }}
+                        />
+                        {skill}
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
+            {/* ── FAMILY ── */}
             {activeTab === 'family' && (
-              <div style={{ display: 'grid', gap: '20px' }}>
-
-                {/* Family Role */}
-                <div className="card" style={{ background: '#f8f6f3', border: '1px dashed #ddd', padding: '16px' }}>
-                  <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>FAMILY ROLE</label>
-                  <select
-                    className="input-field"
-                    disabled={isReadOnly}
-                    value={editingMember.familyRole || ''}
-                    onChange={e => updateField('familyRole', e.target.value)}
-                  >
+              <div style={{ display: 'grid', gap: 16 }}>
+                {/* Family role */}
+                <div className="card-flat">
+                  <label className="form-label" style={{ marginBottom: 8 }}>Family Role</label>
+                  <select className="input-field" disabled={isReadOnly} value={editingMember.familyRole || ''} onChange={e => updateField('familyRole', e.target.value)}>
                     <option value="">— Not Set —</option>
                     <option value="parent">Parent</option>
                     <option value="spouse">Spouse</option>
                     <option value="child">Child</option>
                     <option value="independent">Independent</option>
                   </select>
-                  {editingMember.familyRole === 'parent' && (
-                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
-                      Parents can edit their own profile and any family member's profile.
-                    </p>
-                  )}
-                  {editingMember.familyRole === 'spouse' && (
-                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
-                      Spouses can edit their own profile and their partner's profile.
-                    </p>
-                  )}
-                  {editingMember.familyRole === 'child' && (
-                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
-                      Children can only edit their own profile.
-                    </p>
-                  )}
-                  {editingMember.familyRole === 'independent' && (
-                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '6px 0 0 0' }}>
-                      Independent members manage their own profile.
+                  {editingMember.familyRole && (
+                    <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '6px 0 0' }}>
+                      {editingMember.familyRole === 'parent' && 'Parents can edit their own profile and any family member\'s profile.'}
+                      {editingMember.familyRole === 'spouse' && 'Spouses can edit their own profile and their partner\'s profile.'}
+                      {editingMember.familyRole === 'child' && 'Children can only edit their own profile.'}
+                      {editingMember.familyRole === 'independent' && 'Independent members manage their own profile.'}
                     </p>
                   )}
                 </div>
 
-                {/* Household Link */}
-                <div className="card" style={{ background: '#f8f6f3', border: '1px dashed #ddd', padding: '16px' }}>
-                  <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>HOUSEHOLD LINK</label>
-                  <select className="input-field" disabled={isReadOnly} value={editingMember.familyId || ""} onChange={e => updateField('familyId', e.target.value)}>
+                {/* Household link */}
+                <div className="card-flat">
+                  <label className="form-label" style={{ marginBottom: 8 }}>Household Link</label>
+                  <select className="input-field" disabled={isReadOnly} value={editingMember.familyId || ''} onChange={e => updateField('familyId', e.target.value)}>
                     <option value="">— Not Linked —</option>
                     {(families || []).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </select>
                 </div>
 
-                {/* Create New Family — only admins or parents without a family */}
+                {/* Create new family (admins) */}
                 {isAdmin && (
-                  <div className="card" style={{ background: '#f0f9ff', border: '1px dashed #bae6fd', padding: '16px' }}>
-                    <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>CREATE NEW FAMILY</label>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                  <div className="card-flat" style={{ background: 'var(--primary-xlight)', border: '1px dashed var(--primary-light)' }}>
+                    <label className="form-label" style={{ marginBottom: 8, color: 'var(--primary-dark)' }}>Create New Family</label>
+                    <div style={{ display: 'flex', gap: 10 }}>
                       <input
                         className="input-field"
                         placeholder="e.g. The Smith Family"
@@ -484,56 +512,47 @@ export default function MemberProfileModal({
                         onChange={e => setNewFamilyName(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleCreateFamily()}
                       />
-                      <button className="btn-primary" style={{ whiteSpace: 'nowrap' }} onClick={handleCreateFamily}>+ Create</button>
+                      <button className="btn-primary" style={{ flexShrink: 0 }} onClick={handleCreateFamily}>+ Create</button>
                     </div>
                   </div>
                 )}
 
-                {/* Household Members */}
+                {/* Household members */}
                 {currentFamily && (
                   <div>
-                    <h4 style={{ color: '#1e3a5f', marginBottom: '12px' }}>
-                      {currentFamily.name}
-                      {householdMembers.length > 0 ? ` · ${householdMembers.length + 1} member${householdMembers.length > 0 ? 's' : ''}` : ''}
-                    </h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+                        {currentFamily.name}
+                      </h4>
+                      <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500 }}>
+                        {householdMembers.length + 1} members
+                      </span>
+                    </div>
                     {householdMembers.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                         {householdMembers.map(m => (
                           canManageFamily ? (
-                            <button
-                              key={m.id}
-                              className="service-badge"
-                              style={{ background: '#fff', border: '1px solid #e5e7eb', cursor: 'pointer' }}
-                              onClick={() => setEditingMember(m)}
-                            >
+                            <button key={m.id} className="btn-secondary" style={{ fontSize: 13, padding: '6px 12px', borderRadius: 'var(--radius-full)' }} onClick={() => setEditingMember(m)}>
                               ✏️ {m.firstName} {m.lastName}
                             </button>
                           ) : (
-                            <div key={m.id} className="service-badge" style={{ background: '#fff', border: '1px solid #eee' }}>
+                            <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 'var(--radius-full)', background: 'var(--border-light)', border: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text-2)' }}>
                               👤 {m.firstName} {m.lastName}
-                            </div>
+                            </span>
                           )
                         ))}
                       </div>
                     )}
 
-                    {/* Family management actions for parents and admins */}
                     {canManageFamily && (
-                      <div style={{ display: 'grid', gap: '12px' }}>
-                        <button
-                          className="btn-secondary"
-                          style={{ justifyContent: 'center' }}
-                          onClick={handleAddFamilyMember}
-                        >
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        <button className="btn-secondary" style={{ justifyContent: 'center' }} onClick={handleAddFamilyMember}>
                           + Add Family Member
                         </button>
-
                         {generateInviteLink && (
-                          <div style={{ background: '#f0fdf4', border: '1px dashed #86efac', borderRadius: '10px', padding: '14px' }}>
-                            <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px', color: '#166534' }}>
-                              INVITE FAMILY MEMBER
-                            </label>
-                            <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ background: 'var(--success-bg)', border: '1px dashed var(--success-border)', borderRadius: 'var(--radius-md)', padding: 14 }}>
+                            <label className="form-label" style={{ color: '#065f46', marginBottom: 8 }}>Invite Family Member</label>
+                            <div style={{ display: 'flex', gap: 8 }}>
                               <input
                                 className="input-field"
                                 type="email"
@@ -544,14 +563,14 @@ export default function MemberProfileModal({
                               />
                               <button
                                 className="btn-primary"
-                                style={{ whiteSpace: 'nowrap', background: '#16a34a' }}
+                                style={{ whiteSpace: 'nowrap', background: '#16a34a', boxShadow: '0 4px 14px rgba(22,163,74,0.25)' }}
                                 onClick={handleSendInvite}
                                 disabled={inviteSending}
                               >
                                 {inviteSending ? '…' : 'Send Invite'}
                               </button>
                             </div>
-                            <p style={{ fontSize: '11px', color: '#6b7280', margin: '6px 0 0 0' }}>
+                            <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '6px 0 0' }}>
                               They'll receive a link to join this family in the directory.
                             </p>
                           </div>
@@ -561,11 +580,11 @@ export default function MemberProfileModal({
                   </div>
                 )}
 
-                {/* No family linked yet, but parent can create one */}
+                {/* No family yet — parent can create */}
                 {!currentFamily && canManageFamily && !isAdmin && (
-                  <div className="card" style={{ background: '#f0f9ff', border: '1px dashed #bae6fd', padding: '16px' }}>
-                    <label style={{ display: 'block', fontWeight: 800, marginBottom: '8px', fontSize: '12px' }}>CREATE NEW FAMILY</label>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                  <div className="card-flat" style={{ background: 'var(--primary-xlight)', border: '1px dashed var(--primary-light)' }}>
+                    <label className="form-label" style={{ marginBottom: 8, color: 'var(--primary-dark)' }}>Create New Family</label>
+                    <div style={{ display: 'flex', gap: 10 }}>
                       <input
                         className="input-field"
                         placeholder="e.g. The Smith Family"
@@ -573,7 +592,7 @@ export default function MemberProfileModal({
                         onChange={e => setNewFamilyName(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleCreateFamily()}
                       />
-                      <button className="btn-primary" style={{ whiteSpace: 'nowrap' }} onClick={handleCreateFamily}>+ Create</button>
+                      <button className="btn-primary" style={{ flexShrink: 0 }} onClick={handleCreateFamily}>+ Create</button>
                     </div>
                   </div>
                 )}
@@ -581,13 +600,18 @@ export default function MemberProfileModal({
             )}
           </div>
 
+          {/* ── Footer ── */}
           <div className="member-modal-footer">
             {isAdmin && !isNewMember ? (
-              <button onClick={handleDelete} style={{ background: 'none', border: 'none', color: '#dc2626', fontWeight: '700', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                Delete
+              <button
+                onClick={handleDelete}
+                className="btn-ghost"
+                style={{ color: 'var(--error)', fontWeight: 700, fontSize: 14 }}
+              >
+                Delete Member
               </button>
             ) : <div />}
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn-secondary" onClick={onClose}>Cancel</button>
               {canEdit && <button className="btn-primary" onClick={handleSave}>Save Profile</button>}
             </div>

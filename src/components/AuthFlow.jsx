@@ -9,15 +9,46 @@ const DEFAULT_SERVICE_SETTINGS = {
   communion: { enabled: true, label: 'Communion', time: '' },
 };
 
-// ── Shared layout wrapper ──────────────────────────────────────────────────
-function AuthCard({ children }) {
+// ── Step progress indicator ────────────────────────────────────────────────
+function StepDots({ total, current }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: 'white', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '460px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <img src={logoIcon} style={{ height: '52px', marginBottom: '12px' }} alt="Logo" />
-          <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '22px', fontWeight: 800 }}>Church Collab App</h2>
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 24 }}>
+      {Array.from({ length: total }).map((_, i) => (
+        <div key={i} style={{
+          width: i === current ? 20 : 6, height: 6,
+          borderRadius: 99,
+          background: i === current ? 'var(--primary)' : 'var(--border)',
+          transition: 'all 300ms ease',
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// ── Shared layout wrapper ──────────────────────────────────────────────────
+function AuthCard({ children, step }) {
+  const stepIndex = { 'login': -1, 'signup-creds': 0, 'find-church': 1, 'claim-profile': 2, 'create-church': 1 }[step] ?? -1;
+  const isSignupFlow = ['signup-creds', 'find-church', 'claim-profile', 'create-church'].includes(step);
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16,
+            background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 14px',
+            boxShadow: 'var(--shadow-primary)',
+          }}>
+            <img src={logoIcon} alt="Logo" style={{ height: 32, filter: 'brightness(0) invert(1)' }} />
+          </div>
+          <h2 style={{ color: 'var(--text)', margin: '0 0 4px 0', fontSize: 22, fontWeight: 800, letterSpacing: '-0.04em' }}>
+            Church Collab App
+          </h2>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-3)' }}>Congregation scheduling &amp; directory</p>
         </div>
+        {isSignupFlow && stepIndex >= 0 && <StepDots total={3} current={stepIndex} />}
         {children}
       </div>
     </div>
@@ -26,14 +57,18 @@ function AuthCard({ children }) {
 
 function ErrorBox({ msg }) {
   if (!msg) return null;
-  return <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '12px' }}>{msg}</div>;
+  return (
+    <div className="info-box error" style={{ marginBottom: 16, fontSize: 13 }}>
+      {msg}
+    </div>
+  );
 }
 
 function StepHeading({ title, sub }) {
   return (
-    <div style={{ marginBottom: '20px' }}>
-      <div style={{ fontWeight: 700, fontSize: '17px', color: '#1e3a5f' }}>{title}</div>
-      {sub && <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{sub}</div>}
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--text)', letterSpacing: '-0.03em' }}>{title}</div>
+      {sub && <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>{sub}</div>}
     </div>
   );
 }
@@ -42,29 +77,24 @@ function StepHeading({ title, sub }) {
 export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
   const [step, setStep] = useState(existingUser ? 'find-church' : 'login');
 
-  // Credentials
-  const [email, setEmail]               = useState(existingUser?.email || '');
-  const [password, setPassword]         = useState('');
-  const [confirmPw, setConfirmPw]       = useState('');
+  const [email, setEmail]             = useState(existingUser?.email || '');
+  const [password, setPassword]       = useState('');
+  const [confirmPw, setConfirmPw]     = useState('');
 
-  // Church search
-  const [churchSearch, setChurchSearch] = useState('');
+  const [churchSearch, setChurchSearch]   = useState('');
   const [churchResults, setChurchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [selectedOrg, setSelectedOrg]   = useState(null);
+  const [selectedOrg, setSelectedOrg]     = useState(null);
 
-  // Claim profile
-  const [memberSearch, setMemberSearch] = useState('');
+  const [memberSearch, setMemberSearch]       = useState('');
   const [verifyingMember, setVerifyingMember] = useState(null);
-  const [verifyInput, setVerifyInput] = useState('');
-  const [verifyError, setVerifyError] = useState('');
+  const [verifyInput, setVerifyInput]         = useState('');
+  const [verifyError, setVerifyError]         = useState('');
 
-  // Create church
   const [newChurchName, setNewChurchName] = useState('');
 
-  // Shared
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
   const [signedUpUser, setSignedUpUser] = useState(existingUser || null);
 
   const signupEmail = email || signedUpUser?.email || '';
@@ -77,10 +107,7 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
     setLoading(true);
     try {
       await auth.signInWithEmailAndPassword(email, password);
-      // App's onAuthStateChanged will load user data and clear this screen
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
     setLoading(false);
   };
 
@@ -94,9 +121,7 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
       const cred = await auth.createUserWithEmailAndPassword(email, password);
       setSignedUpUser(cred.user);
       setStep('find-church');
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
     setLoading(false);
   };
 
@@ -113,9 +138,7 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
         .filter(o => (o.churchName || '').toLowerCase().includes(q))
         .slice(0, 12);
       setChurchResults(results);
-    } catch (err) {
-      setChurchResults([]);
-    }
+    } catch (err) { setChurchResults([]); }
     setSearchLoading(false);
   };
 
@@ -126,7 +149,6 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
     setStep('claim-profile');
   };
 
-  // Final step — write user doc and optionally update claimed member
   const finishSetup = async ({ orgId, role, updatedMembers }) => {
     setLoading(true);
     setError('');
@@ -135,15 +157,12 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
         await db.collection('organizations').doc(orgId).update({ members: updatedMembers });
       }
       await db.collection('users').doc(signedUpUser.uid).set({
-        orgId,
-        role,
+        orgId, role,
         email: signupEmail,
         createdAt: new Date().toISOString(),
       });
       onSetupComplete();
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
     setLoading(false);
   };
 
@@ -166,17 +185,17 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
     const val = verifyInput.trim().toLowerCase();
     const emailMatch = verifyingMember.email && verifyingMember.email.toLowerCase() === val;
     const phoneNorm = (str) => str.replace(/\D/g, '');
-    const phoneMatch = verifyingMember.phone && phoneNorm(verifyingMember.phone) === phoneNorm(verifyInput.trim()) && phoneNorm(verifyInput.trim()).length >= 7;
+    const phoneMatch = verifyingMember.phone
+      && phoneNorm(verifyingMember.phone) === phoneNorm(verifyInput.trim())
+      && phoneNorm(verifyInput.trim()).length >= 7;
     if (emailMatch || phoneMatch) {
       handleClaimProfile(verifyingMember);
     } else {
-      setVerifyError('That email or phone number does not match this profile. Please try again.');
+      setVerifyError('That email or phone number does not match this profile.');
     }
   };
 
-  const handleSkipClaim = () => {
-    finishSetup({ orgId: selectedOrg.id, role: 'standard', updatedMembers: null });
-  };
+  const handleSkipClaim = () => finishSetup({ orgId: selectedOrg.id, role: 'standard', updatedMembers: null });
 
   const handleCreateChurch = async (e) => {
     e.preventDefault();
@@ -187,129 +206,143 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
       const orgRef = db.collection('organizations').doc();
       await orgRef.set({
         churchName: newChurchName.trim(),
-        members: [],
-        families: [],
-        schedule: {},
+        members: [], families: [], schedule: {},
         serviceSettings: DEFAULT_SERVICE_SETTINGS,
         createdAt: new Date().toISOString(),
       });
       await db.collection('users').doc(signedUpUser.uid).set({
-        orgId: orgRef.id,
-        role: 'owner',
+        orgId: orgRef.id, role: 'owner',
         email: signupEmail,
         createdAt: new Date().toISOString(),
       });
       onSetupComplete();
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
     setLoading(false);
   };
 
-  // ── Derived data for claim-profile step ───────────────────────────────────
-
+  // ── Derived ───────────────────────────────────────────────────────────────
   const allMembers = selectedOrg?.members || [];
   const emailMatches = allMembers.filter(m => m.email && m.email.toLowerCase() === signupEmail.toLowerCase());
   const filteredMembers = memberSearch.trim()
-    ? allMembers.filter(m => {
-        const full = `${m.firstName || ''} ${m.lastName || ''}`.toLowerCase();
-        return full.includes(memberSearch.toLowerCase());
-      })
+    ? allMembers.filter(m => `${m.firstName || ''} ${m.lastName || ''}`.toLowerCase().includes(memberSearch.toLowerCase()))
     : allMembers;
-
-  // ── Render steps ──────────────────────────────────────────────────────────
-
-  const inputStyle = { width: '100%', padding: '12px 14px', border: '2px solid #e5e0d8', borderRadius: '10px', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Outfit, sans-serif' };
-  const btnPrimary = { background: '#1e3a5f', color: 'white', border: 'none', padding: '13px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '15px', width: '100%', fontFamily: 'Outfit, sans-serif' };
-  const btnSecondary = { background: 'white', color: '#1e3a5f', border: '2px solid #e5e7eb', padding: '11px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '14px', width: '100%', fontFamily: 'Outfit, sans-serif', marginTop: '8px' };
-  const linkBtn = { background: 'none', border: 'none', color: '#1e3a5f', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', fontSize: '14px', fontFamily: 'Outfit, sans-serif', padding: 0 };
 
   // ── LOGIN ─────────────────────────────────────────────────────────────────
   if (step === 'login') return (
-    <AuthCard>
+    <AuthCard step={step}>
       <StepHeading title="Welcome back" sub="Sign in to your congregation account." />
       <ErrorBox msg={error} />
-      <form onSubmit={handleLogin} style={{ display: 'grid', gap: '12px' }}>
-        <input style={inputStyle} placeholder="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-        <input style={inputStyle} placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-        <button style={btnPrimary} type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign In'}</button>
+      <form onSubmit={handleLogin} style={{ display: 'grid', gap: 10 }}>
+        <input className="auth-input" placeholder="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+        <input className="auth-input" placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+        <button className="auth-btn-primary" type="submit" disabled={loading} style={{ marginTop: 4 }}>
+          {loading ? 'Signing in…' : 'Sign In'}
+        </button>
       </form>
-      <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px', color: '#6b7280' }}>
+      <div style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'var(--text-3)' }}>
         New here?{' '}
-        <button style={linkBtn} onClick={() => { setError(''); setStep('signup-creds'); }}>Create an account</button>
+        <button className="auth-link" onClick={() => { setError(''); setStep('signup-creds'); }}>Create an account</button>
       </div>
     </AuthCard>
   );
 
   // ── SIGN-UP CREDENTIALS ───────────────────────────────────────────────────
   if (step === 'signup-creds') return (
-    <AuthCard>
+    <AuthCard step={step}>
       <StepHeading title="Create your account" sub="Step 1 of 3 — We'll find your congregation next." />
       <ErrorBox msg={error} />
-      <form onSubmit={handleSignUpCreds} style={{ display: 'grid', gap: '12px' }}>
-        <input style={inputStyle} placeholder="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-        <input style={inputStyle} placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-        <input style={inputStyle} placeholder="Confirm password" type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} required />
-        <button style={btnPrimary} type="submit" disabled={loading}>{loading ? 'Creating account…' : 'Continue →'}</button>
+      <form onSubmit={handleSignUpCreds} style={{ display: 'grid', gap: 10 }}>
+        <input className="auth-input" placeholder="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+        <input className="auth-input" placeholder="Password (min 6 chars)" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+        <input className="auth-input" placeholder="Confirm password" type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} required />
+        <button className="auth-btn-primary" type="submit" disabled={loading} style={{ marginTop: 4 }}>
+          {loading ? 'Creating account…' : 'Continue →'}
+        </button>
       </form>
-      <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px', color: '#6b7280' }}>
+      <div style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'var(--text-3)' }}>
         Already have an account?{' '}
-        <button style={linkBtn} onClick={() => { setError(''); setStep('login'); }}>Sign in</button>
+        <button className="auth-link" onClick={() => { setError(''); setStep('login'); }}>Sign in</button>
       </div>
     </AuthCard>
   );
 
   // ── FIND CHURCH ───────────────────────────────────────────────────────────
   if (step === 'find-church') return (
-    <AuthCard>
-      <StepHeading title="Find your congregation" sub="Step 2 of 3 — Search by name to locate your church in the system." />
+    <AuthCard step={step}>
+      <StepHeading title="Find your congregation" sub="Step 2 of 3 — Search by name to locate your church." />
       <ErrorBox msg={error} />
-      <input
-        style={inputStyle}
-        placeholder="Search congregation name…"
-        value={churchSearch}
-        onChange={e => handleSearchChurches(e.target.value)}
-        autoFocus
-      />
-      <div style={{ marginTop: '10px', maxHeight: '260px', overflowY: 'auto' }}>
-        {searchLoading && <div style={{ color: '#6b7280', fontSize: '13px', padding: '10px 0' }}>Searching…</div>}
-        {!searchLoading && churchSearch.length >= 2 && churchResults.length === 0 && (
-          <div style={{ color: '#6b7280', fontSize: '13px', padding: '10px 0' }}>No congregations found matching "{churchSearch}".</div>
-        )}
-        {churchResults.map(org => (
-          <button
-            key={org.id}
-            onClick={() => handleSelectChurch(org)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '12px 14px', marginBottom: '6px', background: '#f8f6f3', border: '2px solid #e5e0d8', borderRadius: '10px', cursor: 'pointer', textAlign: 'left', fontFamily: 'Outfit, sans-serif' }}
-          >
-            <div>
-              <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: '15px' }}>{org.churchName}</div>
-              <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>{(org.members || []).length} members in directory</div>
-            </div>
-            <span style={{ color: '#1e3a5f', fontWeight: 700 }}>Select →</span>
-          </button>
-        ))}
+      <div style={{ position: 'relative', marginBottom: 8 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }}>
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          className="auth-input"
+          style={{ paddingLeft: 36 }}
+          placeholder="Search congregation name…"
+          value={churchSearch}
+          onChange={e => handleSearchChurches(e.target.value)}
+          autoFocus
+        />
       </div>
-      <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '16px', paddingTop: '16px' }}>
-        <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px', textAlign: 'center' }}>Don't see your congregation?</div>
-        <button style={btnSecondary} onClick={() => { setError(''); setStep('create-church'); }}>+ Create a New Congregation</button>
+
+      <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+        {searchLoading && (
+          <div style={{ color: 'var(--text-3)', fontSize: 13, padding: '10px 0', textAlign: 'center' }}>Searching…</div>
+        )}
+        {!searchLoading && churchSearch.length >= 2 && churchResults.length === 0 && (
+          <div style={{ color: 'var(--text-3)', fontSize: 13, padding: '10px 0', textAlign: 'center' }}>
+            No congregations found matching "{churchSearch}"
+          </div>
+        )}
+        <div style={{ display: 'grid', gap: 6 }}>
+          {churchResults.map(org => (
+            <button
+              key={org.id}
+              onClick={() => handleSelectChurch(org)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', padding: '12px 14px',
+                background: 'var(--surface-2)', border: '1.5px solid var(--border)',
+                borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'left',
+                transition: 'all 150ms ease',
+              }}
+              onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary-light)'; e.currentTarget.style.background = 'var(--primary-xlight)'; }}
+              onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface-2)'; }}
+            >
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: 14, letterSpacing: '-0.02em' }}>{org.churchName}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>{(org.members || []).length} members</div>
+              </div>
+              <span style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 13 }}>Select →</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 16 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', margin: '0 0 10px' }}>Don't see your congregation?</p>
+        <button className="auth-btn-secondary" onClick={() => { setError(''); setStep('create-church'); }}>
+          + Create a New Congregation
+        </button>
       </div>
     </AuthCard>
   );
 
   // ── CLAIM PROFILE ─────────────────────────────────────────────────────────
   if (step === 'claim-profile') return (
-    <AuthCard>
+    <AuthCard step={step}>
       <StepHeading
-        title={`Are you in ${selectedOrg.churchName}'s directory?`}
-        sub="Step 3 of 3 — Claim an existing profile to link your account, or skip if you're new."
+        title={`Are you in ${selectedOrg.churchName}?`}
+        sub="Step 3 of 3 — Claim your existing profile, or skip if you're new."
       />
       <ErrorBox msg={error} />
 
       {/* Email-matched suggestions */}
       {emailMatches.length > 0 && (
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Suggested match</div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Suggested match
+          </div>
           {emailMatches.map(m => (
             <MemberClaimCard key={m.id} member={m} onClaim={() => handleClaimProfile(m)} loading={loading} highlight />
           ))}
@@ -318,26 +351,34 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
 
       {/* Verification overlay */}
       {verifyingMember && (
-        <div style={{ background: '#f0f9ff', border: '2px solid #bae6fd', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
-          <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: '14px', marginBottom: '4px' }}>
-            Verify your identity for {verifyingMember.firstName} {verifyingMember.lastName}
+        <div className="info-box info" style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: 'var(--text)' }}>
+            Verify for {verifyingMember.firstName} {verifyingMember.lastName}
           </div>
-          <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '10px' }}>
-            Enter the email address or phone number on this profile to confirm it's yours.
-          </div>
+          <p style={{ fontSize: 13, margin: '0 0 10px' }}>Enter the email or phone number on this profile.</p>
           <input
-            style={{ ...inputStyle, marginBottom: '8px' }}
-            placeholder="Email or phone number on profile…"
+            className="auth-input"
+            style={{ marginBottom: 8 }}
+            placeholder="Email or phone number…"
             value={verifyInput}
             onChange={e => { setVerifyInput(e.target.value); setVerifyError(''); }}
             autoFocus
           />
-          {verifyError && <div style={{ color: '#b91c1c', fontSize: '13px', marginBottom: '8px' }}>{verifyError}</div>}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={handleVerifyAndClaim} disabled={loading || !verifyInput.trim()} style={{ ...btnPrimary, width: 'auto', padding: '9px 18px', fontSize: '14px' }}>
+          {verifyError && <div style={{ color: 'var(--error)', fontSize: 13, marginBottom: 8 }}>{verifyError}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleVerifyAndClaim}
+              disabled={loading || !verifyInput.trim()}
+              className="auth-btn-primary"
+              style={{ flex: 1, marginTop: 0, padding: '10px 16px', fontSize: 13 }}
+            >
               Confirm & Claim
             </button>
-            <button onClick={() => setVerifyingMember(null)} style={{ ...btnSecondary, width: 'auto', padding: '9px 18px', fontSize: '14px', marginTop: 0 }}>
+            <button
+              onClick={() => setVerifyingMember(null)}
+              className="auth-btn-secondary"
+              style={{ flex: 1, marginTop: 0, padding: '10px 16px', fontSize: 13 }}
+            >
               Cancel
             </button>
           </div>
@@ -345,28 +386,39 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
       )}
 
       {/* Search all members */}
-      <input
-        style={{ ...inputStyle, marginBottom: '10px' }}
-        placeholder="Search by first or last name…"
-        value={memberSearch}
-        onChange={e => setMemberSearch(e.target.value)}
-      />
-      <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '6px' }}>
+      <div style={{ position: 'relative', marginBottom: 10 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)', pointerEvents: 'none' }}>
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          className="auth-input"
+          style={{ paddingLeft: 36 }}
+          placeholder="Search by name…"
+          value={memberSearch}
+          onChange={e => setMemberSearch(e.target.value)}
+        />
+      </div>
+
+      <div style={{ maxHeight: 220, overflowY: 'auto', display: 'grid', gap: 6 }}>
         {filteredMembers
-          .filter(m => !emailMatches.find(em => em.id === m.id)) // don't double-show email matches
+          .filter(m => !emailMatches.find(em => em.id === m.id))
           .map(m => (
             <MemberClaimCard key={m.id} member={m} onClaim={() => handleRequestVerify(m)} loading={loading} />
           ))}
         {filteredMembers.length === 0 && (
-          <div style={{ color: '#6b7280', fontSize: '13px', padding: '8px 0' }}>No members match your search.</div>
+          <div style={{ color: 'var(--text-3)', fontSize: 13, padding: '8px 0' }}>No members match your search.</div>
         )}
       </div>
 
-      <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '16px', paddingTop: '16px' }}>
-        <button style={btnSecondary} onClick={handleSkipClaim} disabled={loading}>
+      <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
+        <button className="auth-btn-secondary" onClick={handleSkipClaim} disabled={loading}>
           I'm not in the directory yet — Skip
         </button>
-        <button style={{ ...linkBtn, display: 'block', margin: '12px auto 0', color: '#6b7280' }} onClick={() => setStep('find-church')}>
+        <button
+          className="auth-link"
+          style={{ display: 'block', margin: '12px auto 0', color: 'var(--text-3)', fontSize: 13 }}
+          onClick={() => setStep('find-church')}
+        >
           ← Back to church search
         </button>
       </div>
@@ -375,21 +427,27 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
 
   // ── CREATE CHURCH ─────────────────────────────────────────────────────────
   if (step === 'create-church') return (
-    <AuthCard>
+    <AuthCard step={step}>
       <StepHeading title="Create your congregation" sub="You'll be set as the owner and can invite others afterward." />
       <ErrorBox msg={error} />
-      <form onSubmit={handleCreateChurch} style={{ display: 'grid', gap: '12px' }}>
+      <form onSubmit={handleCreateChurch} style={{ display: 'grid', gap: 10 }}>
         <input
-          style={inputStyle}
+          className="auth-input"
           placeholder="Congregation name (e.g. Oak Hill Church of Christ)"
           value={newChurchName}
           onChange={e => setNewChurchName(e.target.value)}
           required
           autoFocus
         />
-        <button style={btnPrimary} type="submit" disabled={loading}>{loading ? 'Creating…' : '🏛️ Create Congregation'}</button>
+        <button className="auth-btn-primary" type="submit" disabled={loading} style={{ marginTop: 4 }}>
+          {loading ? 'Creating…' : '🏛️ Create Congregation'}
+        </button>
       </form>
-      <button style={{ ...linkBtn, display: 'block', margin: '16px auto 0', color: '#6b7280' }} onClick={() => { setError(''); setStep('find-church'); }}>
+      <button
+        className="auth-link"
+        style={{ display: 'block', margin: '16px auto 0', color: 'var(--text-3)', fontSize: 13 }}
+        onClick={() => { setError(''); setStep('find-church'); }}
+      >
         ← Back to church search
       </button>
     </AuthCard>
@@ -403,22 +461,31 @@ function MemberClaimCard({ member, onClaim, loading, highlight }) {
   const initials = `${(member.firstName || '')[0] || ''}${(member.lastName || '')[0] || ''}`.toUpperCase();
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: '12px',
-      padding: '10px 12px', borderRadius: '10px', border: `2px solid ${highlight ? '#a7f3d0' : '#e5e0d8'}`,
-      background: highlight ? '#f0fdf4' : '#fafaf9',
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '10px 12px', borderRadius: 'var(--radius-md)',
+      border: `1.5px solid ${highlight ? 'var(--success-border)' : 'var(--border)'}`,
+      background: highlight ? 'var(--success-bg)' : 'var(--surface-2)',
     }}>
-      {member.photoURL
-        ? <img src={member.photoURL} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-        : <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#1e3a5f', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>{initials}</div>
-      }
+      {member.photoURL ? (
+        <img src={member.photoURL} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+      ) : (
+        <div className="avatar-circle" style={{ width: 36, height: 36, fontSize: 13, flexShrink: 0 }}>{initials}</div>
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: '14px' }}>{member.firstName} {member.lastName}</div>
-        {member.email && <div style={{ fontSize: '12px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.email}</div>}
+        <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: 14, letterSpacing: '-0.02em' }}>
+          {member.firstName} {member.lastName}
+        </div>
+        {member.email && (
+          <div style={{ fontSize: 12, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {member.email}
+          </div>
+        )}
       </div>
       <button
         onClick={onClaim}
         disabled={loading}
-        style={{ background: '#1e3a5f', color: 'white', border: 'none', padding: '7px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px', flexShrink: 0, fontFamily: 'Outfit, sans-serif' }}
+        className="btn-primary"
+        style={{ padding: '7px 14px', fontSize: 12, flexShrink: 0, boxShadow: 'none' }}
       >
         Claim
       </button>
