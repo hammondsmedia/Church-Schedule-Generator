@@ -70,7 +70,6 @@ export default function DirectoryTab({ members = [], families = [], userRole, se
       {/* Grid */}
       {filtered.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">👥</div>
           <h3>{search ? 'No results found' : 'No members yet'}</h3>
           <p>{search ? `No members match "${search}". Try a different search.` : 'Add members to your congregation directory to get started.'}</p>
         </div>
@@ -121,23 +120,20 @@ export default function DirectoryTab({ members = [], families = [], userRole, se
                       style={{ padding: '5px 10px', fontSize: 12, flexShrink: 0, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
                       onClick={() => setEditingMember(m)}
                     >
-                      {canEdit ? '✏️ Edit' : '👁️ View'}
+                      {canEdit ? 'Edit' : 'View'}
                     </button>
                   </div>
 
                   <div style={{ fontSize: 13, color: 'var(--text-3)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {family && (
-                      <div style={{ color: '#9a3412', fontWeight: 600, fontSize: 12 }}>🏠 {family.name}</div>
+                      <div style={{ color: '#9a3412', fontWeight: 600, fontSize: 12 }}>{family.name}</div>
                     )}
                     {(!m.hiddenFields?.phone || isAdmin) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span>📞</span>
-                        <span style={{ color: m.hiddenFields?.phone && isAdmin ? 'var(--text-3)' : 'inherit' }}>
-                          {m.phone || '—'}
-                          {m.hiddenFields?.phone && isAdmin && (
-                            <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 4 }}>(hidden)</span>
-                          )}
-                        </span>
+                      <div style={{ color: m.hiddenFields?.phone && isAdmin ? 'var(--text-3)' : 'inherit' }}>
+                        {m.phone || '—'}
+                        {m.hiddenFields?.phone && isAdmin && (
+                          <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 4 }}>(hidden)</span>
+                        )}
                       </div>
                     )}
                   </div>

@@ -76,7 +76,7 @@ export default function AccountPage({ user, memberData, onUpdate, onDelete, onBa
                     fontSize: 12,
                   }}
                 >
-                  {uploading ? '…' : '📷'}
+                  {uploading ? '…' : '+' }
                 </label>
                 <input type="file" id="photo-up" style={{ display: 'none' }} onChange={handlePhotoUpload} accept="image/*" />
               </div>

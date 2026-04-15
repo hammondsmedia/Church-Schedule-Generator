@@ -1,6 +1,5 @@
 // src/components/AuthFlow.jsx
 import React, { useState } from 'react';
-import logoIcon from '../assets/logo-icon.svg';
 
 const DEFAULT_SERVICE_SETTINGS = {
   sundayMorning: { enabled: true, label: 'Sunday Morning', time: '10:00 AM' },
@@ -34,17 +33,8 @@ function AuthCard({ children, step }) {
     <div className="auth-page">
       <div className="auth-card">
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 16,
-            background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 14px',
-            boxShadow: 'var(--shadow-primary)',
-          }}>
-            <img src={logoIcon} alt="Logo" style={{ height: 32, filter: 'brightness(0) invert(1)' }} />
-          </div>
-          <h2 style={{ color: 'var(--text)', margin: '0 0 4px 0', fontSize: 22, fontWeight: 800, letterSpacing: '-0.04em' }}>
-            Church Collab App
+          <h2 style={{ color: 'var(--text)', margin: '0 0 4px 0', fontSize: 26, fontWeight: 800, letterSpacing: '-0.05em' }}>
+            Collab<span style={{ color: 'var(--primary)' }}>App</span>
           </h2>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-3)' }}>Congregation scheduling &amp; directory</p>
         </div>
@@ -440,7 +430,7 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
           autoFocus
         />
         <button className="auth-btn-primary" type="submit" disabled={loading} style={{ marginTop: 4 }}>
-          {loading ? 'Creating…' : '🏛️ Create Congregation'}
+          {loading ? 'Creating…' : 'Create Congregation'}
         </button>
       </form>
       <button
