@@ -19,6 +19,45 @@ import MemberProfileModal from './components/modals/MemberProfileModal';
 import NoteModal from './components/modals/NoteModal';
 import AuthFlow from './components/AuthFlow';
 
+// ── SVG Icons for bottom nav ───────────────────────────────────────────────
+const IconUsers = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
+);
+const IconCalendar = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+);
+const IconClipboard = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+  </svg>
+);
+const IconChevronLeft = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 18 9 12 15 6"/>
+  </svg>
+);
+const IconChevronRight = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </svg>
+);
+const IconZap = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  </svg>
+);
+
 export default function ChurchScheduleApp() {
   // --- STATE ---
   const [firebaseReady, setFirebaseReady] = useState(false);
@@ -27,14 +66,14 @@ export default function ChurchScheduleApp() {
   const [churchName, setChurchName] = useState('');
   const [orgId, setOrgId] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  
+
   // Organization Data
-  const [members, setMembers] = useState([]); 
-  const [families, setFamilies] = useState([]); 
-  const [servicePeople, setServicePeople] = useState([]); // Required for ServicesTab
-  const [pendingInvites, setPendingInvites] = useState([]); 
+  const [members, setMembers] = useState([]);
+  const [families, setFamilies] = useState([]);
+  const [servicePeople, setServicePeople] = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
   const [schedule, setSchedule] = useState({});
-  
+
   // Navigation State
   const [view, setView] = useState('directory');
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -42,7 +81,7 @@ export default function ChurchScheduleApp() {
   const [dataLoading, setDataLoading] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
 
-  // --- UI TOGGLES ---
+  // UI Toggles
   const [editingMember, setEditingMember] = useState(null);
   const [assigningSlot, setAssigningSlot] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
@@ -62,7 +101,7 @@ export default function ChurchScheduleApp() {
   const fileInputRef = useRef(null);
   const dropdownRef = useRef(null);
   const actionsRef = useRef(null);
-  const isClearingRef = useRef(false); // CRITICAL: Stop auto-save during deletions
+  const isClearingRef = useRef(false);
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -86,12 +125,8 @@ export default function ChurchScheduleApp() {
     init();
 
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setShowProfileMenu(false);
-      }
-      if (actionsRef.current && !actionsRef.current.contains(e.target)) {
-        setShowActions(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowProfileMenu(false);
+      if (actionsRef.current && !actionsRef.current.contains(e.target)) setShowActions(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -115,15 +150,13 @@ export default function ChurchScheduleApp() {
             setFamilies(d.families || []);
             setServicePeople(d.servicePeople || []);
             setSchedule(d.schedule || {});
-            setServiceSettings({ ...serviceSettings, ...(d.serviceSettings || {}) });
+            setServiceSettings(prev => ({ ...prev, ...(d.serviceSettings || {}) }));
             setChurchName(d.churchName || '');
-            // Prefer role stored in org members array (updated by admins) over stale users doc
             const memberInOrg = (d.members || []).find(m => m.id === uid);
             if (memberInOrg?.role) setUserRole(memberInOrg.role.toLowerCase());
           }
         }
       } else {
-        // Firebase Auth account exists but no user doc — guide through setup
         setNeedsSetup(true);
       }
     } catch (err) { console.error('Load Error:', err); }
@@ -131,30 +164,33 @@ export default function ChurchScheduleApp() {
   };
 
   const fetchOrgData = async (targetOrgId) => {
-    const inviteSnapshot = await db.current.collection('invitations').where('orgId', '==', targetOrgId).where('status', '==', 'pending').get();
+    const inviteSnapshot = await db.current.collection('invitations')
+      .where('orgId', '==', targetOrgId)
+      .where('status', '==', 'pending')
+      .get();
     setPendingInvites(inviteSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
-  // --- SYNCED AUTO-SAVE ---
+  // --- AUTO-SAVE ---
   useEffect(() => {
     if (user && firebaseReady && !dataLoading && !isClearingRef.current && orgId && ['owner', 'admin'].includes(userRole)) {
       const t = setTimeout(() => {
-        // Switch to .update() to ensure local field state is strictly enforced
-        db.current.collection('organizations').doc(orgId).update({ 
-          members, families, schedule, serviceSettings, servicePeople, churchName, updatedAt: new Date().toISOString() 
+        db.current.collection('organizations').doc(orgId).update({
+          members, families, schedule, serviceSettings, servicePeople, churchName,
+          updatedAt: new Date().toISOString()
         });
       }, 2000);
       return () => clearTimeout(t);
     }
   }, [members, families, schedule, serviceSettings, servicePeople, churchName]);
 
-  // --- CORE LOGIC HANDLERS ---
+  // --- CORE LOGIC ---
   const handleGenerateSchedule = () => {
     const speakers = (members || []).filter(m => m.isSpeaker);
     if (speakers.length === 0) return alert("No speakers found. Ensure members have 'Enable for Schedule Generator' checked in Directory.");
     const enabledTypes = Object.keys(serviceSettings).filter(k => serviceSettings[k]?.enabled);
     const hasAvailability = speakers.some(m => enabledTypes.some(t => m.availability?.[t]));
-    if (!hasAvailability) return alert("Speakers are enabled, but none have availability set for any active service. Open a speaker's profile in the Directory and check their availability.");
+    if (!hasAvailability) return alert("Speakers are enabled, but none have availability set for any active service.");
     try {
       setSchedule(generateScheduleLogic(selectedMonth, members, serviceSettings, schedule));
       setView('calendar');
@@ -169,17 +205,12 @@ export default function ChurchScheduleApp() {
     isClearingRef.current = true;
     const year = selectedMonth.getFullYear(), month = selectedMonth.getMonth();
     const newSchedule = { ...schedule };
-    
     Object.keys(newSchedule).forEach(key => {
       const parts = key.split('-');
-      if (parts.length >= 3 && parseInt(parts[0]) === year && (parseInt(parts[1]) - 1) === month) {
-        delete newSchedule[key];
-      }
+      if (parts.length >= 3 && parseInt(parts[0]) === year && (parseInt(parts[1]) - 1) === month) delete newSchedule[key];
     });
-
     try {
       setDataLoading(true);
-      // Force overwrite of the entire schedule field
       await db.current.collection('organizations').doc(orgId).update({ schedule: newSchedule });
       setSchedule(newSchedule);
       setShowActions(false);
@@ -222,14 +253,12 @@ export default function ChurchScheduleApp() {
     } catch (err) { alert("Save failed."); }
   };
 
-  // Direct Firestore save for non-admin member profile edits (auto-save only runs for admins)
   const handleSaveProfile = async (updatedMembers) => {
     if (!['owner', 'admin'].includes(userRole)) {
       try {
         await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
       } catch (err) { alert("Save failed. Please try again."); }
     }
-    // For admins the auto-save effect will handle persistence
   };
 
   const cancelInvite = async (id) => { await db.current.collection('invitations').doc(id).delete(); fetchOrgData(orgId); };
@@ -238,10 +267,7 @@ export default function ChurchScheduleApp() {
       const updatedMembers = members.map(m => m.id === uid ? { ...m, role } : m);
       await db.current.collection('organizations').doc(orgId).update({ members: updatedMembers });
       setMembers(updatedMembers);
-    } catch (err) {
-      console.error('Failed to update role:', err);
-      alert('Failed to update role. Please try again.');
-    }
+    } catch (err) { alert('Failed to update role. Please try again.'); }
   };
   const removeMember = async (id, name) => {
     if (!window.confirm(`Remove ${name}?`)) return;
@@ -250,23 +276,36 @@ export default function ChurchScheduleApp() {
   };
   const generateInviteLink = async (email, role) => {
     const code = Math.random().toString(36).substring(2, 10);
-    await db.current.collection('invitations').doc(code).set({ orgId, email, role, churchName, status: 'pending', expiresAt: new Date(Date.now() + 604800000).toISOString() });
+    await db.current.collection('invitations').doc(code).set({
+      orgId, email, role, churchName, status: 'pending',
+      expiresAt: new Date(Date.now() + 604800000).toISOString()
+    });
     fetchOrgData(orgId);
     alert("Code generated: " + code);
   };
-
   const handleSaveNote = (slotKey, noteText) => {
     setSchedule(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], note: noteText } }));
     setEditingNote(null);
   };
-
   const getSpeakerName = (id) => {
-    const s = (members || []).find(m => m.id === id); 
-    return s ? `${s.firstName} ${s.lastName}` : ''; 
+    const s = (members || []).find(m => m.id === id);
+    return s ? `${s.firstName} ${s.lastName}` : '';
   };
 
+  // Derived data
+  const currentUserMember = (members || []).find(m => m.id === user?.uid);
+  const avatarURL = currentUserMember?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}&background=6366f1&color=fff&bold=true`;
+
+  // --- LOADING ---
   if (authLoading || (user && dataLoading && needsSetup)) {
-    return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', fontFamily: 'Outfit' }}>Connecting…</div>;
+    return (
+      <div className="loading-screen">
+        <div>
+          <div className="loading-spinner" />
+          <p style={{ margin: 0, color: 'var(--text-3)', fontSize: '14px', fontWeight: 500, textAlign: 'center' }}>Connecting…</p>
+        </div>
+      </div>
+    );
   }
 
   if (!user || needsSetup) {
@@ -280,104 +319,175 @@ export default function ChurchScheduleApp() {
     );
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#f8f6f3' }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; font-family: 'Outfit', sans-serif !important; }
-        .btn-primary { background: #1e3a5f; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-        .btn-secondary { background: white; color: #1e3a5f; border: 2px solid #e5e7eb; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        .card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); padding: 24px; border: 1px solid #e5e7eb; }
-        .nav-tab { padding: 16px 24px; border: none; background: transparent; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; font-size: 15px; }
-        .nav-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
-        .input-field { width: 100%; padding: 14px; border: 2px solid #e5e0d8; border-radius: 10px; font-size: 15px; outline: none; }
-        .calendar-bar { padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; margin: 2px 0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; border: none; }
-        .bar-empty { background: #f9fafb; color: #cbd5e1; border: 1px dashed #e2e8f0 !important; }
-        .actions-dropdown { position: absolute; top: 110%; right: 0; background: white; border: 1px solid #eee; borderRadius: 12px; width: 220px; z-index: 1000; boxShadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; }
-        .dropdown-item { width: 100%; padding: 12px 16px; text-align: left; border: none; background: none; cursor: pointer; font-size: 14px; border-radius: 8px; color: #1e3a5f; font-weight: 500; display: flex; align-items: center; gap: 10px; }
-        .dropdown-item:hover { background: #f3f4f6; }
-        .member-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-        .member-modal-wrap { width: 100%; max-width: 900px; max-height: 90vh; display: flex; padding: 0; overflow: hidden; }
-        .member-modal-sidebar { width: 300px; flex-shrink: 0; border-right: 1px solid #eee; padding: 24px; background: #fbfbfc; overflow-y: auto; }
-        .member-modal-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .member-modal-tabs { display: flex; border-bottom: 1px solid #eee; background: #fff; overflow-x: auto; }
-        .member-modal-tabs::-webkit-scrollbar { display: none; }
-        .member-modal-body { flex: 1; padding: 32px; overflow-y: auto; }
-        .member-modal-footer { padding: 20px 32px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #fff; flex-wrap: wrap; gap: 8px; }
-        @media (max-width: 640px) {
-          .member-modal-overlay { padding: 0; align-items: flex-end; }
-          .member-modal-wrap { flex-direction: column; max-width: 100%; max-height: 95dvh; border-radius: 20px 20px 0 0; }
-          .member-modal-sidebar { width: 100%; border-right: none; border-bottom: 1px solid #eee; padding: 16px; }
-          .member-modal-body { padding: 16px; }
-          .member-modal-footer { padding: 12px 16px; }
-          .nav-tab { padding: 12px 14px; font-size: 13px; white-space: nowrap; }
-        }
-      `}</style>
+  // ── NAV TABS config ────────────────────────────────────────────────────────
+  const navTabs = [
+    { id: 'directory', icon: '👥', label: 'Directory' },
+    { id: 'calendar',  icon: '📅', label: 'Teaching Calendar' },
+    { id: 'services',  icon: '🛠️', label: 'Service Plans' },
+  ];
 
-      <header style={{ background: '#ffffff', padding: '16px 0', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 1000 }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer' }} onClick={() => setCurrentPage('dashboard')}>
-            <img src={logoIcon} alt="Logo" style={{ height: '35px' }} />
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e3a5f' }}>Collab App</h1>
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+
+      {/* ── HEADER ── */}
+      <header className="app-header">
+        <div className="app-header-inner">
+          {/* Logo */}
+          <div className="app-logo" onClick={() => setCurrentPage('dashboard')}>
+            <img src={logoIcon} alt="Logo" style={{ height: 32 }} />
+            <span className="app-logo-name">Collab<span>App</span></span>
           </div>
+
+          {/* Church name (center, desktop only) */}
+          {currentPage === 'dashboard' && (
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '-0.01em', display: 'none' }} className="header-church-name">
+              {churchName}
+            </span>
+          )}
+
+          {/* Avatar / Profile dropdown */}
           <div style={{ position: 'relative' }} ref={dropdownRef}>
-            <button className="btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShowProfileMenu(!showProfileMenu)}>
-              <img src={(members || []).find(m => m.id === user.uid)?.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=1e3a5f&color=fff`} style={{ width: '32px', height: '32px', borderRadius: '50%' }} alt="Me" />
-              <span style={{ fontWeight: '800' }}>Account ▼</span>
+            <button className="avatar-btn" onClick={() => setShowProfileMenu(!showProfileMenu)}>
+              <img src={avatarURL} className="avatar-img" alt="Me" />
+              <span className="avatar-label">Account</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-3)' }}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
             </button>
             {showProfileMenu && (
               <div className="actions-dropdown">
-                <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">👤 My Profile</button>
-                {['owner', 'admin'].includes(userRole) && <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">⚙️ Settings</button>}
-                <button onClick={() => auth.current.signOut()} className="dropdown-item" style={{ color: '#dc2626', borderTop: '1px solid #f3f4f6' }}>🚪 Sign Out</button>
+                <button onClick={() => { setCurrentPage('account'); setShowProfileMenu(false); }} className="dropdown-item">
+                  👤 My Profile
+                </button>
+                {['owner', 'admin'].includes(userRole) && (
+                  <button onClick={() => { setCurrentPage('settings'); setShowProfileMenu(false); }} className="dropdown-item">
+                    ⚙️ Settings
+                  </button>
+                )}
+                <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
+                <button onClick={() => auth.current.signOut()} className="dropdown-item danger">
+                  🚪 Sign Out
+                </button>
               </div>
             )}
           </div>
         </div>
       </header>
 
-      <main style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 24px' }}>
+      {/* ── MAIN CONTENT ── */}
+      <main className="app-main">
         {currentPage === 'account' ? (
-          <AccountPage user={user} memberData={(members || []).find(m => m.id === user.uid) || {}} onUpdate={handleUpdateSelf} onBack={() => setCurrentPage('dashboard')} storage={storage.current} />
+          <AccountPage
+            user={user}
+            memberData={currentUserMember || {}}
+            onUpdate={handleUpdateSelf}
+            onBack={() => setCurrentPage('dashboard')}
+            storage={storage.current}
+          />
         ) : currentPage === 'settings' ? (
-          <SettingsPage onBack={() => setCurrentPage('dashboard')} serviceSettings={serviceSettings} setServiceSettings={setServiceSettings} userRole={userRole} user={user} members={members} pendingInvites={pendingInvites} cancelInvite={cancelInvite} generateInviteLink={generateInviteLink} updateMemberRole={updateMemberRole} removeMember={removeMember} churchName={churchName} setChurchName={setChurchName} />
+          <SettingsPage
+            onBack={() => setCurrentPage('dashboard')}
+            serviceSettings={serviceSettings}
+            setServiceSettings={setServiceSettings}
+            userRole={userRole}
+            user={user}
+            members={members}
+            pendingInvites={pendingInvites}
+            cancelInvite={cancelInvite}
+            generateInviteLink={generateInviteLink}
+            updateMemberRole={updateMemberRole}
+            removeMember={removeMember}
+            churchName={churchName}
+            setChurchName={setChurchName}
+          />
         ) : (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ color: '#1e3a5f', margin: 0, fontSize: '28px', fontWeight: '800' }}>{churchName || 'Your Congregation'}</h2>
+            {/* PAGE HEADER */}
+            <div className="page-header">
+              <h2 className="page-title">{churchName || 'Your Congregation'}</h2>
+
+              {/* Calendar controls */}
               {view === 'calendar' && (
-                <div style={{ display: 'flex', gap: '10px', position: 'relative' }} ref={actionsRef}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}>←</button>
-                      <span style={{ fontWeight: '800', minWidth: '140px', textAlign: 'center' }}>{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
-                      <button className="btn-secondary" onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}>→</button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Month navigation */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '2px' }}>
+                    <button
+                      className="btn-ghost"
+                      style={{ padding: '6px 10px', borderRadius: 'var(--radius-sm)' }}
+                      onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1))}
+                    >
+                      <IconChevronLeft />
+                    </button>
+                    <span style={{ fontWeight: 700, minWidth: '130px', textAlign: 'center', fontSize: '14px', color: 'var(--text)', letterSpacing: '-0.02em' }}>
+                      {selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <button
+                      className="btn-ghost"
+                      style={{ padding: '6px 10px', borderRadius: 'var(--radius-sm)' }}
+                      onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1))}
+                    >
+                      <IconChevronRight />
+                    </button>
                   </div>
-                  <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>⚡ Actions ▼</button>
-                  {showActions && (
-                    <div className="actions-dropdown">
-                      <button className="dropdown-item" onClick={() => { exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName); setShowActions(false); }}>📄 Export PDF</button>
-                      <button className="dropdown-item" onClick={() => { exportToCSV(selectedMonth, schedule, members, serviceSettings, getSpeakerName); setShowActions(false); }}>📊 Export CSV</button>
-                      {['owner', 'admin'].includes(userRole) && (
-                        <>
-                          <button className="dropdown-item" onClick={() => { fileInputRef.current.click(); setShowActions(false); }}>📥 Import CSV</button>
-                          <input type="file" ref={fileInputRef} onChange={handleImportCSV} style={{ display: 'none' }} />
-                          <button className="dropdown-item" style={{ color: 'red' }} onClick={handleClearMonth}>🗑️ Clear Month</button>
-                        </>
-                      )}
-                    </div>
+
+                  {/* Actions dropdown */}
+                  <div style={{ position: 'relative' }} ref={actionsRef}>
+                    <button className="btn-secondary" onClick={() => setShowActions(!showActions)}>
+                      ⚡ Actions
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
+                    </button>
+                    {showActions && (
+                      <div className="actions-dropdown">
+                        <button className="dropdown-item" onClick={() => { exportToPDF(selectedMonth, schedule, serviceSettings, getMonthDays, getSpeakerName); setShowActions(false); }}>
+                          📄 Export PDF
+                        </button>
+                        <button className="dropdown-item" onClick={() => { exportToCSV(selectedMonth, schedule, members, serviceSettings, getSpeakerName); setShowActions(false); }}>
+                          📊 Export CSV
+                        </button>
+                        {['owner', 'admin'].includes(userRole) && (
+                          <>
+                            <button className="dropdown-item" onClick={() => { fileInputRef.current.click(); setShowActions(false); }}>
+                              📥 Import CSV
+                            </button>
+                            <input type="file" ref={fileInputRef} onChange={handleImportCSV} style={{ display: 'none' }} />
+                            <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
+                            <button className="dropdown-item danger" onClick={handleClearMonth}>
+                              🗑️ Clear Month
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {['owner', 'admin'].includes(userRole) && (
+                    <button className="btn-primary" onClick={handleGenerateSchedule}>
+                      <IconZap /> Generate
+                    </button>
                   )}
-                  {['owner', 'admin'].includes(userRole) && <button className="btn-primary" onClick={handleGenerateSchedule}>✨ Generate</button>}
                 </div>
               )}
             </div>
 
-            {/* RESTORED: SERVICES TAB BUTTON */}
-            <nav style={{ display: 'flex', background: 'white', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #e5e7eb', marginBottom: '32px' }}>
-              <button className={'nav-tab ' + (view === 'directory' ? 'active' : '')} onClick={() => setView('directory')}>👥 Directory</button>
-              <button className={'nav-tab ' + (view === 'calendar' ? 'active' : '')} onClick={() => setView('calendar')}>📅 Teaching Calendar</button>
-              <button className={'nav-tab ' + (view === 'services' ? 'active' : '')} onClick={() => setView('services')}>🛠️ Service Plans</button>
+            {/* DESKTOP TAB NAVIGATION */}
+            <nav className="desktop-nav" style={{ marginBottom: 28 }}>
+              <div className="nav-tabs-container" style={{ display: 'inline-flex' }}>
+                {navTabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    className={`nav-tab${view === tab.id ? ' active' : ''}`}
+                    onClick={() => setView(tab.id)}
+                  >
+                    <span>{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </nav>
 
+            {/* CONTENT */}
             <div className="fade-in">
               {view === 'directory' ? (
                 <DirectoryTab members={members} families={families} userRole={userRole} setEditingMember={setEditingMember} user={user} />
@@ -391,20 +501,111 @@ export default function ChurchScheduleApp() {
         )}
       </main>
 
-      <MemberProfileModal isOpen={!!editingMember} onClose={() => setEditingMember(null)} editingMember={editingMember} setEditingMember={setEditingMember} members={members} setMembers={setMembers} families={families} setFamilies={setFamilies} serviceSettings={serviceSettings} userRole={userRole} storage={storage.current} removeMember={removeMember} user={user} onSaveProfile={handleSaveProfile} generateInviteLink={generateInviteLink} />
-      {/* PASSING DELETE HANDLER */}
-      <NoteModal isOpen={!!editingNote} onClose={() => setEditingNote(null)} editingNote={editingNote} setEditingNote={setEditingNote} getSpeakerName={getSpeakerName} handleSaveNote={handleSaveNote} handleDeleteSlot={handleDeleteSlot} userRole={userRole} setAssigningSlot={setAssigningSlot} />
+      {/* ── MOBILE BOTTOM NAV (dashboard only) ── */}
+      {currentPage === 'dashboard' && (
+        <nav className="bottom-nav">
+          <div className="bottom-nav-items">
+            {navTabs.map(tab => (
+              <button
+                key={tab.id}
+                className={`bottom-nav-btn${view === tab.id ? ' active' : ''}`}
+                onClick={() => setView(tab.id)}
+              >
+                {tab.id === 'directory' && <IconUsers />}
+                {tab.id === 'calendar'  && <IconCalendar />}
+                {tab.id === 'services'  && <IconClipboard />}
+                {tab.label.split(' ')[0]}
+                <div className="bottom-nav-dot" />
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
 
+      {/* ── MODALS ── */}
+      <MemberProfileModal
+        isOpen={!!editingMember}
+        onClose={() => setEditingMember(null)}
+        editingMember={editingMember}
+        setEditingMember={setEditingMember}
+        members={members}
+        setMembers={setMembers}
+        families={families}
+        setFamilies={setFamilies}
+        serviceSettings={serviceSettings}
+        userRole={userRole}
+        storage={storage.current}
+        removeMember={removeMember}
+        user={user}
+        onSaveProfile={handleSaveProfile}
+        generateInviteLink={generateInviteLink}
+      />
+
+      <NoteModal
+        isOpen={!!editingNote}
+        onClose={() => setEditingNote(null)}
+        editingNote={editingNote}
+        setEditingNote={setEditingNote}
+        getSpeakerName={getSpeakerName}
+        handleSaveNote={handleSaveNote}
+        handleDeleteSlot={handleDeleteSlot}
+        userRole={userRole}
+        setAssigningSlot={setAssigningSlot}
+      />
+
+      {/* ── ASSIGN SPEAKER MODAL ── */}
       {assigningSlot && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
-          <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
-            <h3 style={{ marginBottom: '20px' }}>Assign Speaker</h3>
-            <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'grid', gap: '8px' }}>
-              {members.filter(m => m.isSpeaker && m.availability?.[assigningSlot.serviceType]).map(m => (
-                <button key={m.id} className="btn-secondary" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setSchedule({ ...schedule, [assigningSlot.slotKey]: { speakerId: m.id, date: assigningSlot.date, serviceType: assigningSlot.serviceType } }); setAssigningSlot(null); }}>{m.firstName} {m.lastName}</button>
-              ))}
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setAssigningSlot(null)}>
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text)' }}>
+                Assign Speaker
+              </h3>
+              <button onClick={() => setAssigningSlot(null)} className="btn-ghost" style={{ padding: '6px 8px', borderRadius: 'var(--radius-sm)', lineHeight: 1 }}>✕</button>
             </div>
-            <button className="btn-secondary" style={{ width: '100%', marginTop: '16px' }} onClick={() => setAssigningSlot(null)}>Cancel</button>
+
+            {members.filter(m => m.isSpeaker && m.availability?.[assigningSlot.serviceType]).length === 0 ? (
+              <div className="empty-state" style={{ padding: '30px 0' }}>
+                <div className="empty-state-icon">😔</div>
+                <p>No available speakers for this service type.</p>
+              </div>
+            ) : (
+              <div style={{ maxHeight: 320, overflowY: 'auto', display: 'grid', gap: 6 }}>
+                {members
+                  .filter(m => m.isSpeaker && m.availability?.[assigningSlot.serviceType])
+                  .map(m => {
+                    const initials = `${m.firstName?.charAt(0) || ''}${m.lastName?.charAt(0) || ''}`.toUpperCase();
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          setSchedule({ ...schedule, [assigningSlot.slotKey]: { speakerId: m.id, date: assigningSlot.date, serviceType: assigningSlot.serviceType } });
+                          setAssigningSlot(null);
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 12px',
+                          border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)',
+                          background: 'var(--surface)', cursor: 'pointer', textAlign: 'left',
+                          transition: 'all 150ms ease', fontSize: 14, fontWeight: 600, color: 'var(--text)',
+                        }}
+                        onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary-light)'; e.currentTarget.style.background = 'var(--primary-xlight)'; }}
+                        onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                      >
+                        {m.photoURL ? (
+                          <img src={m.photoURL} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt="" />
+                        ) : (
+                          <div className="avatar-circle" style={{ width: 32, height: 32, fontSize: 12, flexShrink: 0 }}>{initials}</div>
+                        )}
+                        {m.firstName} {m.lastName}
+                      </button>
+                    );
+                  })
+                }
+              </div>
+            )}
+            <button className="btn-secondary" style={{ width: '100%', marginTop: 14 }} onClick={() => setAssigningSlot(null)}>
+              Cancel
+            </button>
           </div>
         </div>
       )}
