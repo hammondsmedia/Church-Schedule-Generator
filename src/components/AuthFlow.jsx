@@ -187,6 +187,28 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
 
   const handleSkipClaim = () => finishSetup({ orgId: selectedOrg.id, role: 'standard', updatedMembers: null });
 
+  const handleSwitchToLogin = async () => {
+    setError('');
+    if (signedUpUser && !existingUser) {
+      try { await auth.signOut(); } catch {}
+    }
+    setSignedUpUser(null);
+    setSelectedOrg(null);
+    setChurchSearch('');
+    setChurchResults([]);
+    setPassword('');
+    setConfirmPw('');
+    setVerifyingMember(null);
+    setStep('login');
+  };
+
+  const SignInInsteadLink = () => existingUser ? null : (
+    <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--text-3)' }}>
+      Already have an account?{' '}
+      <button className="auth-link" onClick={handleSwitchToLogin}>Sign in</button>
+    </div>
+  );
+
   const handleCreateChurch = async (e) => {
     e.preventDefault();
     if (!newChurchName.trim()) return setError('Please enter your congregation name.');
@@ -315,6 +337,7 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
           + Create a New Congregation
         </button>
       </div>
+      <SignInInsteadLink />
     </AuthCard>
   );
 
@@ -412,6 +435,7 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
           ← Back to church search
         </button>
       </div>
+      <SignInInsteadLink />
     </AuthCard>
   );
 
@@ -440,6 +464,7 @@ export default function AuthFlow({ auth, db, existingUser, onSetupComplete }) {
       >
         ← Back to church search
       </button>
+      <SignInInsteadLink />
     </AuthCard>
   );
 
