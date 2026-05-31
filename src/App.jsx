@@ -275,12 +275,41 @@ export default function ChurchScheduleApp() {
   };
   const generateInviteLink = async (email, role) => {
     const code = Math.random().toString(36).substring(2, 10);
+    const inviteLink = `${window.location.origin}/?invite=${code}`;
     await db.current.collection('invitations').doc(code).set({
       orgId, email, role, churchName, status: 'pending',
       expiresAt: new Date(Date.now() + 604800000).toISOString()
     });
+
+    const expires = new Date(Date.now() + 604800000).toLocaleDateString();
+    try {
+      await sendInviteEmail({
+        // Recipient address under the common EmailJS field names so the
+        // template's "To Email" setting resolves regardless of convention.
+        to_email: email,
+        email,
+        recipient: email,
+        reply_to: email,
+        to_name: email,
+        // Body content, also aliased for common template variable names.
+        role,
+        church_name: churchName,
+        organization: churchName,
+        from_name: churchName,
+        invite_code: code,
+        code,
+        invite_link: inviteLink,
+        link: inviteLink,
+        expires,
+        message: `You've been invited to join ${churchName} on CollabApp as a ${role}. Accept your invitation here: ${inviteLink} (code: ${code}). This invite expires on ${expires}.`
+      });
+      alert(`Invitation email sent to ${email}`);
+    } catch (err) {
+      console.error("Failed to send invitation email:", err);
+      alert(`The invite was saved, but the email could not be sent to ${email}.\n\nShare this code manually: ${code}\n\nError: ${err?.text || err?.message || 'Unknown email error'}`);
+    }
+
     fetchOrgData(orgId);
-    alert("Code generated: " + code);
   };
   const handleSaveNote = (slotKey, noteText) => {
     setSchedule(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], note: noteText } }));
