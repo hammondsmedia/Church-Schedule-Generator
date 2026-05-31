@@ -596,7 +596,11 @@ export default function ChurchScheduleApp() {
 
             {members.filter(m => m.isSpeaker && m.availability?.[assigningSlot.serviceType]).length === 0 ? (
               <div className="empty-state" style={{ padding: '30px 0' }}>
-                <p>No available speakers for this service type.</p>
+                <p>
+                  {members.some(m => m.isSpeaker)
+                    ? 'No speakers are marked available for this service. Open a member in the Directory and check this service under their availability.'
+                    : 'No speakers yet. Open a member in the Directory and enable "Use in Schedule Generator", then set their availability.'}
+                </p>
               </div>
             ) : (
               <div style={{ maxHeight: 320, overflowY: 'auto', display: 'grid', gap: 6 }}>

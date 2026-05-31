@@ -1002,14 +1002,24 @@ h1, h2, h3, h4, h5, h6 {
   .app-main { padding: 20px 16px; padding-bottom: calc(var(--bottom-nav-height) + 20px); }
   .page-title { font-size: 22px; }
 
-  /* Calendar toolbar: lay out full-width so the Generate button is always
-     visible instead of wrapping off the row on narrow screens. */
-  .calendar-controls { width: 100%; }
-  .calendar-controls .generate-btn {
-    flex: 1 1 100%;
-    justify-content: center;
-    padding: 12px 18px;
+  /* Calendar toolbar: stack the controls vertically on mobile so the
+     Generate button is always a full-width row and can never wrap off-screen. */
+  .calendar-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
   }
+  .calendar-controls > * { width: 100%; }
+  .calendar-controls .generate-btn {
+    flex: none;
+    width: 100%;
+    justify-content: center;
+    padding: 14px 18px;
+    font-size: 15px;
+  }
+
+  /* Larger tap targets for calendar slots so assignments are easy to tap. */
+  .calendar-bar { min-height: 48px; }
 
   /* Modal bottom sheets */
   .member-modal-overlay {
