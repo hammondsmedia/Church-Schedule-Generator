@@ -1002,6 +1002,15 @@ h1, h2, h3, h4, h5, h6 {
   .app-main { padding: 20px 16px; padding-bottom: calc(var(--bottom-nav-height) + 20px); }
   .page-title { font-size: 22px; }
 
+  /* Calendar toolbar: lay out full-width so the Generate button is always
+     visible instead of wrapping off the row on narrow screens. */
+  .calendar-controls { width: 100%; }
+  .calendar-controls .generate-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    padding: 12px 18px;
+  }
+
   /* Modal bottom sheets */
   .member-modal-overlay {
     padding: 0;
