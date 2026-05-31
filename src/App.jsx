@@ -275,12 +275,29 @@ export default function ChurchScheduleApp() {
   };
   const generateInviteLink = async (email, role) => {
     const code = Math.random().toString(36).substring(2, 10);
+    const inviteLink = `${window.location.origin}/?invite=${code}`;
     await db.current.collection('invitations').doc(code).set({
       orgId, email, role, churchName, status: 'pending',
       expiresAt: new Date(Date.now() + 604800000).toISOString()
     });
+
+    try {
+      await sendInviteEmail({
+        to_email: email,
+        email,
+        role,
+        church_name: churchName,
+        invite_code: code,
+        invite_link: inviteLink,
+        expires: new Date(Date.now() + 604800000).toLocaleDateString()
+      });
+      alert(`Invitation email sent to ${email}`);
+    } catch (err) {
+      console.error("Failed to send invitation email:", err);
+      alert(`The invite was saved, but the email could not be sent to ${email}.\n\nShare this code manually: ${code}\n\nError: ${err?.text || err?.message || 'Unknown email error'}`);
+    }
+
     fetchOrgData(orgId);
-    alert("Code generated: " + code);
   };
   const handleSaveNote = (slotKey, noteText) => {
     setSchedule(prev => ({ ...prev, [slotKey]: { ...prev[slotKey], note: noteText } }));
