@@ -55,14 +55,18 @@ export default function MemberProfileModal({
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file || !storage) return alert('Storage not available.');
+    if (!file) return;
+    if (!storage) return alert('Photo upload is unavailable: file storage failed to initialize. Please reload the page and try again.');
     setUploading(true);
     try {
       const ref = storage.ref(`profile_pics/${editingMember.id}`);
       await ref.put(file);
       const url = await ref.getDownloadURL();
       setEditingMember({ ...editingMember, photoURL: url });
-    } catch (err) { alert('Upload failed.'); }
+    } catch (err) {
+      console.error('Photo upload failed:', err);
+      alert(`Upload failed: ${[err?.code, err?.message].filter(Boolean).join(' — ') || 'Unknown error'}`);
+    }
     setUploading(false);
   };
 

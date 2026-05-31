@@ -110,7 +110,11 @@ export default function ChurchScheduleApp() {
         if (!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
         auth.current = window.firebase.auth();
         db.current = window.firebase.firestore();
-        if (typeof window.firebase.storage === 'function') storage.current = window.firebase.storage();
+        if (typeof window.firebase.storage === 'function') {
+          storage.current = window.firebase.storage();
+        } else {
+          console.error('Firebase Storage SDK failed to load — photo uploads will be unavailable.');
+        }
 
         auth.current.onAuthStateChanged((u) => {
           setUser(u);
