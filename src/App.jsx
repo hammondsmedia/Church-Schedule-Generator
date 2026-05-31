@@ -435,7 +435,7 @@ export default function ChurchScheduleApp() {
 
               {/* Calendar controls */}
               {view === 'calendar' && (
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="calendar-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   {/* Month navigation */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '2px' }}>
                     <button
@@ -490,7 +490,7 @@ export default function ChurchScheduleApp() {
                   </div>
 
                   {['owner', 'admin'].includes(userRole) && (
-                    <button className="btn-primary" onClick={handleGenerateSchedule}>
+                    <button className="btn-primary generate-btn" onClick={handleGenerateSchedule}>
                       <IconZap /> Generate
                     </button>
                   )}
