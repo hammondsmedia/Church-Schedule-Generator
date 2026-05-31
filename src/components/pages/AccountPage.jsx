@@ -15,7 +15,8 @@ export default function AccountPage({ user, memberData, onUpdate, onDelete, onBa
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file || !storage) return;
+    if (!file) return;
+    if (!storage) return alert('Photo upload is unavailable: file storage failed to initialize. Please reload the page and try again.');
     setUploading(true);
     try {
       const ref = storage.ref(`profile_pics/${user.uid}`);
@@ -24,7 +25,10 @@ export default function AccountPage({ user, memberData, onUpdate, onDelete, onBa
       const updated = { ...form, photoURL: url };
       setForm(updated);
       await onUpdate(updated);
-    } catch (err) { alert('Upload failed.'); }
+    } catch (err) {
+      console.error('Photo upload failed:', err);
+      alert(`Upload failed: ${[err?.code, err?.message].filter(Boolean).join(' — ') || 'Unknown error'}`);
+    }
     setUploading(false);
   };
 
